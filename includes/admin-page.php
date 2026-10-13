@@ -47,12 +47,26 @@ $ready = '' !== CPTAI_Settings::key( $settings['provider'] ) && '' !== $settings
                 <button class="cptai-button">Filtrar / actualizar</button>
                 <div class="cptai-filter-sort"><label for="cptai-sort">Ordenar</label><select name="sort" id="cptai-sort"><?php foreach ( $sort_options as $key => $option ) : ?><option value="<?php echo esc_attr( $key ); ?>" <?php selected( $sort, $key ); ?>><?php echo esc_html( $option['label'] ); ?></option><?php endforeach; ?></select></div>
             </form>
+            <details class="cptai-manual" id="cptai-manual">
+                <summary>Añadir cadena manual</summary>
+                <p class="cptai-hint">Copia el mensaje exacto de éxito o error, aunque solo aparezca después de enviar un formulario. Se traducirá cuando aparezca en la página. No incluyas HTML ni datos personales.</p>
+                <form id="cptai-add-form">
+                    <div class="cptai-manual-grid">
+                        <div><label for="cptai-add-original">Texto original</label><textarea id="cptai-add-original" name="original" rows="3" required placeholder="Your message was sent successfully."></textarea></div>
+                        <div><label for="cptai-add-translated">Traducción</label><textarea id="cptai-add-translated" name="translated" rows="3" placeholder="Tu mensaje se ha enviado correctamente."></textarea></div>
+                    </div>
+                    <div class="cptai-manual-controls"><label for="cptai-add-target">Idioma de destino</label><select name="target" id="cptai-add-target"><?php foreach ( $settings['targets'] as $code ) : ?><option value="<?php echo esc_attr( $code ); ?>" <?php selected( $target, $code ); ?>><?php echo esc_html( $languages[ $code ] ); ?></option><?php endforeach; ?></select><label for="cptai-add-url">Página de referencia (opcional)</label><input type="url" id="cptai-add-url" name="url" placeholder="<?php echo esc_url( home_url( '/' ) ); ?>"><button type="submit" class="cptai-button cptai-button-primary">Añadir cadena</button></div>
+                    <p class="cptai-hint">Sin traducción, se añade como pendiente. La misma cadena se guarda una sola vez por idioma. Recarga una página que ya estaba abierta para cargar las nuevas traducciones.</p>
+                    <p id="cptai-add-status" role="status" aria-live="polite"></p>
+                </form>
+            </details>
             <p id="cptai-filter-status" class="cptai-hint" role="status" aria-live="polite"></p>
             <p id="cptai-draft-status" class="cptai-hint" role="status" hidden></p>
             <div id="cptai-dictionary-results">
                 <?php require __DIR__ . '/admin-dictionary.php'; ?>
             </div>
             <p class="cptai-hint">Vacía una traducción y guarda para volver al original. Mayúsculas, puntuación y espacios interiores distinguen cadenas.</p>
+            <p class="cptai-hint">Los nombres de meses y días de semana se traducen automáticamente en las fechas, sin API. Se conservan las cifras; una corrección manual de fecha debe mantener el día, el año y la hora.</p>
         </section>
 
         <details class="cptai-settings" id="cptai-settings" <?php echo $target ? '' : 'open'; ?>>
@@ -68,7 +82,7 @@ $ready = '' !== CPTAI_Settings::key( $settings['provider'] ) && '' !== $settings
                     </section>
                     <section class="cptai-setting-card">
                         <h3>Selector y captura</h3>
-                        <div class="cptai-setting-field"><label class="cptai-check"><input type="checkbox" name="footer" value="1" <?php checked( $settings['footer'] ); ?>> Mostrar el selector al pie de las páginas</label><p class="cptai-hint">También puedes insertar <code>[creative_pear_language_switcher]</code> en un bloque o widget.</p></div>
+                        <div class="cptai-setting-field"><label class="cptai-check"><input type="checkbox" name="footer" value="1" <?php checked( $settings['footer'] ); ?>> Mostrar el selector al pie de las páginas</label><p class="cptai-hint">En Elementor, arrastra <strong>CPT AI · Selector de idiomas</strong>. Recoge los idiomas activados aquí y permite elegir banderas, nombres o iniciales y configurar su estilo.</p></div>
                         <div class="cptai-setting-field"><label class="cptai-check"><input type="checkbox" name="capture_gettext" value="1" <?php checked( $settings['capture_gettext'] ); ?>> Incluir cadenas internas de WordPress y plugins</label><p class="cptai-hint">Captura mensajes localizados aunque no se muestren en la página. Puede añadir muchas cadenas; actívalo si falta un mensaje con marcadores.</p></div>
                         <div class="cptai-setting-field"><label for="cptai-provider">Proveedor para las sugerencias de IA</label><select id="cptai-provider" name="provider"><option value="openai" <?php selected( $settings['provider'], 'openai' ); ?>>OpenAI (ChatGPT)</option><option value="claude" <?php selected( $settings['provider'], 'claude' ); ?>>Anthropic (Claude)</option></select></div>
                     </section>

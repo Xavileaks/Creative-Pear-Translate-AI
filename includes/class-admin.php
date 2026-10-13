@@ -16,7 +16,7 @@ final class CPTAI_Admin {
         } );
         add_action( 'admin_post_cptai_settings', array( self::class, 'save_settings' ) );
         add_action( 'admin_post_cptai_edit', array( self::class, 'edit' ) );
-        foreach ( array( 'models', 'prepare', 'batch', 'capture', 'scan_link', 'row', 'save_string', 'save_settings_ajax', 'dictionary' ) as $action ) {
+        foreach ( array( 'models', 'prepare', 'batch', 'capture', 'scan_link', 'row', 'save_string', 'save_settings_ajax', 'dictionary', 'add_string' ) as $action ) {
             add_action( 'wp_ajax_cptai_' . $action, array( self::class, $action ) );
         }
     }
@@ -40,7 +40,7 @@ final class CPTAI_Admin {
     }
 
     private static function target(): string {
-        $target = sanitize_key( wp_unslash( $_POST['target'] ?? '' ) );
+        $target = isset( $_POST['target'] ) && is_string( $_POST['target'] ) ? sanitize_key( wp_unslash( $_POST['target'] ) ) : '';
         if ( ! in_array( $target, CPTAI_Settings::get()['targets'], true ) ) {
             self::result( new WP_Error( 'target', 'Guarda primero el idioma de destino en los ajustes.' ) );
         }
@@ -260,6 +260,9 @@ final class CPTAI_Admin {
         if ( '' !== $text && ! CPTAI_Provider::valid( $row->original, $text ) ) {
             self::result( new WP_Error( 'text', 'Conserva los marcadores del texto y no introduzcas HTML.' ) );
         }
+        if ( '' !== $text && ! CPTAI_Calendar::preserves_numbers( $row->original, $text, $row->source_lang, $row->target_lang ) ) {
+            self::result( new WP_Error( 'date', 'Conserva el día, el año y la hora de la fecha. Los meses y días de semana se traducen automáticamente.' ) );
+        }
         $expected = isset( $_POST['expected'] ) && is_string( $_POST['expected'] ) ? wp_unslash( $_POST['expected'] ) : $row->translated;
         // Compare and write atomically so concurrent browser tabs cannot overwrite a newer edit.
         $saved = $wpdb->query( $wpdb->prepare( 'UPDATE ' . CPTAI_Store::table() . ' SET translated=%s,updated_at=%s WHERE id=%d AND BINARY translated=BINARY %s', $text, current_time( 'mysql', true ), $row->id, $expected ) );
@@ -273,6 +276,30 @@ final class CPTAI_Admin {
         self::result( array( 'id' => (int) $row->id, 'text' => $text, 'translated' => '' !== $text ) );
     }
 
+    public static function add_string(): void {
+        self::permission();
+        global $wpdb;
+        $target = self::target();
+        $source = CPTAI_Settings::get()['source'];
+        $original = isset( $_POST['original'] ) && is_string( $_POST['original'] ) ? trim( wp_unslash( $_POST['original'] ) ) : '';
+        $translated = isset( $_POST['translated'] ) && is_string( $_POST['translated'] ) ? trim( wp_unslash( $_POST['translated'] ) ) : '';
+        if ( ! CPTAI_HTML::translatable( $original ) || ! CPTAI_Provider::valid( $original, $original ) ) {
+            self::result( new WP_Error( 'original', 'Introduce el mensaje original exacto, sin HTML y con un máximo de 3.500 bytes.' ) );
+        }
+        if ( '' !== $translated && ( ! CPTAI_Provider::valid( $original, $translated ) || ! CPTAI_Calendar::preserves_numbers( $original, $translated, $source, $target ) ) ) {
+            self::result( new WP_Error( 'translation', 'La traducción debe conservar los marcadores y los números de las fechas, sin HTML.' ) );
+        }
+        $url = isset( $_POST['url'] ) && is_string( $_POST['url'] ) ? esc_url_raw( wp_unslash( $_POST['url'] ) ) : '';
+        $url = $url ? CPTAI_Routing::source_url( $url ) : home_url( '/' );
+        if ( ! CPTAI_Frontend::local_url( $url ) ) {
+            self::result( new WP_Error( 'url', 'La página de referencia debe ser una URL pública de este sitio.' ) );
+        }
+        $inserted = $wpdb->query( $wpdb->prepare( 'INSERT IGNORE INTO ' . CPTAI_Store::table() . ' (source_lang,target_lang,source_hash,original,translated,source_url,updated_at) VALUES (%s,%s,%s,%s,%s,%s,%s)', $source, $target, hash( 'sha256', $original ), $original, $translated, $url, current_time( 'mysql', true ) ) );
+        if ( false === $inserted ) { self::result( new WP_Error( 'db', 'No se pudo añadir la cadena. El texto permanece en los campos.' ) ); }
+        if ( 0 === $inserted ) { self::result( new WP_Error( 'duplicate', 'Esta cadena ya existe para ese idioma. Búscala en el diccionario para editarla; su traducción se conserva.' ) ); }
+        self::result( array( 'original' => $original, 'target' => $target ) );
+    }
+
     public static function edit(): void {
         self::permission( 'cptai_edit' );
         global $wpdb;
@@ -281,6 +308,9 @@ final class CPTAI_Admin {
         $text = trim( wp_unslash( $_POST['translated'] ?? '' ) );
         if ( ! $row || ( '' !== $text && ! CPTAI_Provider::valid( $row->original, $text ) ) ) {
             wp_die( 'El texto no es válido. Conserva los marcadores y no introduzcas HTML.' );
+        }
+        if ( '' !== $text && ! CPTAI_Calendar::preserves_numbers( $row->original, $text, $row->source_lang, $row->target_lang ) ) {
+            wp_die( 'Conserva el día, el año y la hora de la fecha. Los nombres se traducen automáticamente.' );
         }
         if ( ! CPTAI_Store::put( $row->original, $text, $row->source_lang, $row->target_lang, $row->source_url ) ) {
             wp_die( 'No se pudo guardar la traducción.' );

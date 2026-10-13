@@ -156,6 +156,32 @@
     event.preventDefault();
     scheduleFilter(Number(new URL(link.href).searchParams.get('paged')) || 1);
   });
+  const addForm = document.getElementById('cptai-add-form');
+  let adding = false;
+  const addDirty = () => [...addForm.querySelectorAll('textarea, input')].some(field => field.value.trim());
+  addForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (adding) return;
+    const submitted = new FormData(addForm);
+    const button = addForm.querySelector('[type="submit"]');
+    const addStatus = document.getElementById('cptai-add-status');
+    adding = true;
+    button.disabled = true;
+    button.textContent = 'Añadiendo…';
+    try {
+      const result = await request('add_string', submitted);
+      for (const field of addForm.querySelectorAll('textarea, input')) {
+        if (field.value === submitted.get(field.name)) field.value = '';
+      }
+      addStatus.textContent = 'Cadena añadida. Se aplicará también a mensajes que aparezcan después de enviar un formulario.';
+      toast('Cadena manual añadida.');
+      document.getElementById('cptai-filter-target').value = result.target;
+      document.getElementById('cptai-search').value = result.original;
+      filterForm.querySelector('[name="pending"]').checked = false;
+      scheduleFilter();
+    } catch (error) { addStatus.textContent = error.message; toast(error.message, true); }
+    finally { adding = false; button.disabled = false; button.textContent = 'Añadir cadena'; }
+  });
   const settingsForm = document.getElementById('cptai-settings-form');
   for (const link of document.querySelectorAll('#cptai-open-settings, .cptai-settings-link')) {
     link.addEventListener('click', () => { document.getElementById('cptai-settings').open = true; });
@@ -206,7 +232,7 @@
         if (saved[key]) expected.set(key, '1');
       }
       settingsBaseline = snapshot(expected);
-      for (const id of ['cptai-target', 'cptai-filter-target']) {
+      for (const id of ['cptai-target', 'cptai-filter-target', 'cptai-add-target']) {
         const select = document.getElementById(id);
         const previous = select.value;
         select.replaceChildren(...saved.targets.map(code => {
@@ -231,7 +257,7 @@
   });
   settingsUpdate();
   window.addEventListener('beforeunload', event => {
-    if (dirtyRows().length || [...rows.values()].some(row => row.saving || row.suggesting) || snapshot(new FormData(settingsForm)) !== settingsBaseline) {
+    if (adding || addDirty() || dirtyRows().length || [...rows.values()].some(row => row.saving || row.suggesting) || snapshot(new FormData(settingsForm)) !== settingsBaseline) {
       event.preventDefault(); event.returnValue = '';
     }
   });

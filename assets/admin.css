@@ -61,6 +61,13 @@
 #cptai-app .cptai-filter-sort select { min-width: 0; max-width: 100%; }
 #cptai-app #cptai-filter-status:empty { display: none; }
 #cptai-app #cptai-dictionary-results[aria-busy='true'] { opacity: .65; }
+#cptai-app .cptai-manual { margin-top: 16px; border-top: 1px solid var(--cptai-line); padding-top: 12px; }
+#cptai-app .cptai-manual summary { cursor: pointer; color: var(--cptai-blue); font-weight: 600; }
+#cptai-app .cptai-manual-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+#cptai-app .cptai-manual-grid label { display: block; margin-bottom: 6px; }
+#cptai-app .cptai-manual-grid textarea { width: 100%; }
+#cptai-app .cptai-manual-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; }
+#cptai-app .cptai-manual-controls input { min-width: 0; flex: 1 1 200px; }
 #cptai-app .cptai-search-wrap { position: relative; min-width: 200px; width: 280px; max-width: 100%; }
 #cptai-app .cptai-search-wrap img { position: absolute; width: 16px; height: 16px; left: 11px; top: 11px; pointer-events: none; }
 #cptai-app .cptai-search-wrap input { width: 100%; padding-left: 36px; }
@@ -113,7 +120,7 @@
 #cptai-app #cptai-toast-close:hover, #cptai-app #cptai-toast-close:focus-visible { background: #ffffff26; outline: 1px solid #ffffffaa; }
 @keyframes cptai-toast-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @media (max-width:1024px) {
-  #cptai-app .cptai-string-row, #cptai-app .cptai-settings-grid { grid-template-columns: minmax(0,1fr); }
+  #cptai-app .cptai-string-row, #cptai-app .cptai-settings-grid, #cptai-app .cptai-manual-grid { grid-template-columns: minmax(0,1fr); }
   #cptai-app .cptai-column-headings { display: none; }
   #cptai-app .cptai-field-label { display: block; }
   #cptai-app .cptai-string-form { border-left: 0; border-top: 1px solid #e8edf5; }

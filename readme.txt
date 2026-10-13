@@ -3,7 +3,7 @@ Contributors: xavileaks
 Tags: translation, multilingual, openai, claude
 Requires at least: 6.4
 Requires PHP: 8.1
-Stable tag: 1.2.0
+Stable tag: 1.3.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -15,7 +15,8 @@ Diccionario compartido de cadenas con edición desde WordPress y traducción opc
 3. Guarda el idioma original y los destinos.
 4. Lee el HTML de una URL pública o abre la captura en navegador.
 5. Filtra el diccionario, edita una traducción y guarda por AJAX: se aplica a todas las coincidencias exactas para ese idioma y muestra un aviso flotante.
-6. Activa el selector al pie o usa [creative_pear_language_switcher].
+6. En Elementor, arrastra CPT AI · Selector de idiomas. Elige su presentación y estilo; recoge automáticamente los idiomas activos de CPT AI.
+7. Añadir cadena manual permite registrar mensajes de éxito/error antes de que aparezcan en un formulario. Recarga las páginas abiertas después de guardar una cadena nueva.
 
 == External services ==
 Las conexiones de IA son opcionales y se realizan solo al pulsar Consultar modelos, Sugerir con IA o Traducir pendientes con IA. Se envía la clave API únicamente al proveedor correspondiente; al traducir se envían las cadenas, idiomas y modelo. No se envía el HTML completo, cookies, contraseñas ni información de pedidos. Las visitas normales y la captura no llaman a APIs de IA. Cada proveedor puede aplicar cargos y sus propias condiciones.
@@ -28,6 +29,11 @@ Condiciones: https://www.anthropic.com/legal/commercial-terms
 Privacidad: https://www.anthropic.com/legal/privacy
 
 == Changelog ==
+= 1.3.0 =
+* Meses y días de semana automáticos, mayúsculas/minúsculas y fechas dinámicas, sin llamadas a IA.
+* Conservación de día/año/hora y protección frente a correcciones antiguas que eliminaban cifras.
+* Alta manual por AJAX de mensajes aún no detectados, sin sobrescribir cadenas existentes.
+* Widget nativo Elementor: cinco presentaciones, banderas EE. UU./Reino Unido/Inglaterra y Portugal/Brasil, tamaños, separación, alineación y tipografía completa.
 = 1.2.0 =
 * Búsqueda en vivo por AJAX sobre originales y traducciones de todo el diccionario.
 * Doce órdenes: alfabético, vacías/traducidas, longitud del original/traducción, detección y actualización.

@@ -1,0 +1,5 @@
+.cptai-elementor-switcher { display:flex; flex-wrap:wrap; align-items:center; gap:16px; }
+.cptai-elementor-switcher .cptai-language { display:inline-flex; align-items:center; gap:8px; text-decoration:none; color:inherit; line-height:1.4; }
+.cptai-elementor-switcher .cptai-flag { display:block; width:32px; height:auto; aspect-ratio:4/3; object-fit:cover; flex-shrink:0; max-width:none; }
+.cptai-elementor-switcher .cptai-language-label { font:inherit; }
+.cptai-elementor-switcher .cptai-language:focus-visible { outline:2px solid currentColor; outline-offset:5px; }

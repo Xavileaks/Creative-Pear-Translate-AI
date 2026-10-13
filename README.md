@@ -19,11 +19,31 @@ Las URLs usan carpetas de idioma: **`/es/`**, **`/en/`**, **`/fr/`**, también p
 3. En **Capturar cadenas de una página**, introduce su URL pública y el destino. **Leer HTML** detecta el HTML generado por WordPress. No necesita clave API.
 4. **Captura en navegador** abre la página con una sesión autorizada. Detecta texto, atributos y nuevas cadenas que aparezcan con JavaScript/AJAX; abre los menús o desplegables que quieras capturar. Regresa al backend y pulsa **Filtrar / actualizar**.
 5. Busca una cadena, escribe su traducción y pulsa **Guardar**. Se aplica a todas sus apariciones para ese idioma. Para volver al original, vacía la traducción y guarda.
-6. Muestra el selector al pie desde los ajustes o añade `[creative_pear_language_switcher]` en un bloque, shortcode o widget Elementor. También puedes abrir una página en `/es/`, `/en/`, etc.
+6. En Elementor, arrastra **CPT AI · Selector de idiomas**. También puedes abrir una página en `/es/`, `/en/`, etc.
 
 El buscador actualiza el diccionario por AJAX mientras escribes, con una pausa de 250 ms para agrupar pulsaciones. Busca en el original y en la traducción de todas las cadenas del idioma seleccionado. El selector **Ordenar** permite A–Z/Z–A, vacías/traducidas primero, más/menos caracteres del original o de la traducción, primeras/últimas detectadas y primeras/últimas actualizadas. La longitud cuenta caracteres Unicode, no bytes. El orden se aplica antes de dividir las páginas y se combina con búsqueda y **Solo pendientes**.
 
 Los filtros y la paginación funcionan sin recargar. Las ediciones sin guardar se mantienen en esta pestaña al buscar, ordenar o cambiar de página; vuelven a aparecer al mostrar su fila. Se indica cuántas hay y se avisa al salir. Solo **Guardar** las escribe en WordPress; no se conservan al cerrar la pestaña. Los filtros se reflejan en la URL para poder volver a abrirlos. Sin JavaScript, el botón **Filtrar / actualizar** y los enlaces siguen funcionando con recarga.
+
+## Fechas y mensajes de formularios
+
+Los nombres de meses y días de semana se traducen automáticamente entre los 13 idiomas disponibles, sin IA ni guardar una entrada para cada fecha. Se conservan mayúsculas/minúsculas, cifras, separadores y orden de la fecha. Por ejemplo, `MARCH 5, 2026` se muestra como `MARZO 5, 2026`; no se convierte en `MARZO`. También se aplica a fechas añadidas o modificadas por JavaScript. El atributo técnico `datetime` no se modifica.
+
+La detección automática se limita a nombres de calendario aislados y textos con aspecto de fecha; no cambia frases como `May I help you?`. No reformatea el orden día/mes/año, no interpreta fechas numéricas ni cambia zonas horarias. Una traducción manual completa tiene prioridad si conserva las cifras. Las correcciones antiguas que borraban día/año se conservan en el diccionario, pero al mostrar la fecha se usa la traducción automática; las ediciones nuevas que pierdan esos datos se rechazan.
+
+Abre **Añadir cadena manual** en el diccionario, copia el texto original exacto, escribe la traducción y elige el destino. La página de referencia es opcional. Puedes añadirla sin traducción para dejarla pendiente. Se comprueban los marcadores y el texto plano; si ya existe, se conserva su traducción y debes editar la fila correspondiente.
+
+Esta opción sirve para mensajes de éxito/error que solo aparecen después de enviar un formulario. Al cargarse la página en un idioma de destino, el diccionario incluye las cadenas manuales y traduce el texto cuando se inserta o cambia en el DOM. **Recarga una página ya abierta después de añadir una cadena nueva** para cargar el diccionario actualizado. Los mensajes dentro de iframes, Shadow DOM o imágenes siguen fuera del alcance; copia el texto exacto que aparecerá, conservando puntuación y marcadores. No se alteran los datos enviados por el formulario.
+
+## Widget de Elementor
+
+Con Elementor activo, busca **CPT AI · Selector de idiomas** en el panel de widgets y arrástralo a la cabecera, pie o contenido. Recoge el idioma original y los destinos activados en CPT AI. El aviso de idiomas del panel se actualiza al volver a abrir el editor después de cambiar los ajustes.
+
+En **Contenido**, elige solo banderas, banderas e iniciales, banderas y nombre completo, solo nombre completo o solo iniciales. Para inglés puedes elegir EE. UU., Reino Unido o Inglaterra; para portugués, Portugal o Brasil. La bandera es una elección visual, no cambia la variante regional del idioma de traducción.
+
+En **Estilo**, ajusta la separación entre idiomas, tamaño y esquinas de las banderas, separación entre bandera y texto y alineación. Los controles de tipografía de Elementor incluyen familia, tamaño, peso, mayúsculas, cursiva, decoración, interlineado y espaciado; hay sombra y colores normal, hover e idioma activo. Separación, tamaño y alineación admiten ajustes responsive. Los enlaces conservan la página actual y la carpeta de idioma; el widget se renderiza como contenido dinámico para no reutilizar enlaces o selecciones de otra página.
+
+El widget usa banderas SVG locales de flag-icons 7.5.0, bajo licencia MIT, incluida en `assets/flags/LICENSE`. No depende de emojis ni de peticiones a un CDN de banderas. La integración es opcional; la traducción funciona sin Elementor. El selector simple al pie y el shortcode anterior se mantienen por compatibilidad con instalaciones existentes; no son necesarios para usar el widget.
 
 ## IA opcional
 
@@ -58,7 +78,7 @@ La tabla `{prefijo}cptai_strings` guarda original, traducción, idiomas y primer
 
 WordPress 6.4+, PHP 8.1+ con DOM, OpenSSL y mbstring. Para IA, conexiones HTTPS salientes a `api.openai.com` o `api.anthropic.com`.
 
-Pruebas sin servicios externos: `php tests/run.php`. Pruebas en WordPress aislado: `php tests/wordpress.php /ruta/a/wordpress`, `php tests/ajax.php /ruta/a/wordpress`, `php tests/routing.php /ruta/a/wordpress` y `php tests/dictionary.php /ruta/a/wordpress`; el entorno debe ser `local`. `tests/coexistence.php` comprueba identificadores independientes con XLeon instalado en ese entorno. Los fixtures usan respuestas simuladas y no llaman a APIs de IA. Las pruebas y herramientas de desarrollo se excluyen del ZIP.
+Pruebas sin servicios externos: `php tests/run.php`, `php tests/calendar.php` y `node tests/calendar.cjs`. Pruebas en WordPress aislado: `php tests/wordpress.php /ruta/a/wordpress`, `php tests/ajax.php /ruta/a/wordpress`, `php tests/routing.php /ruta/a/wordpress`, `php tests/dictionary.php /ruta/a/wordpress` y `php tests/elementor.php /ruta/a/wordpress` (Elementor debe estar activo); el entorno debe ser `local`. `tests/coexistence.php` comprueba identificadores independientes con XLeon instalado en ese entorno. Los fixtures usan respuestas simuladas y no llaman a APIs de IA. Las pruebas y herramientas de desarrollo se excluyen del ZIP.
 
 Se consultaron las interfaces oficiales: [OpenAI Responses](https://developers.openai.com/api/docs/guides/text) y [Anthropic Messages](https://platform.claude.com/docs/en/api/messages/create).
 
@@ -66,6 +86,6 @@ El ZIP TranslatePress 3.3.8 facilitado por el usuario se revisó como referencia
 
 ## Publicación
 
-Las etiquetas `v*` validan PHP y JavaScript, ejecutan las pruebas y generan `creative-pear-translate-ai.zip` como archivo instalable de GitHub Releases. Instala ese archivo, no el ZIP automático del código fuente. Versión actual: **1.2.0**. La actualización conserva las traducciones y claves anteriores.
+Las etiquetas `v*` validan PHP y JavaScript, ejecutan las pruebas y generan `creative-pear-translate-ai.zip` como archivo instalable de GitHub Releases. Instala ese archivo, no el ZIP automático del código fuente. Versión actual: **1.3.0**. La actualización conserva las traducciones y claves anteriores.
 
 La versión 1.1.1 corrige rutas de idioma que devolvían 404 al faltar sus reglas guardadas. Registra las reglas en la activación, las regenera una vez al actualizar y proporciona las rutas durante la resolución de una URL de idioma aunque otro proceso haya eliminado las reglas del plugin. No regenera ni escribe reglas en cada visita. Después de actualizar, elimina los 404 guardados en la caché del sitio/CDN. Si persiste un error, guarda una vez Ajustes → Enlaces permanentes y verifica que las peticiones lleguen a WordPress. La indexación multilingüe sigue pendiente; esta corrección de rutas no habilita el SEO de las variantes traducidas.

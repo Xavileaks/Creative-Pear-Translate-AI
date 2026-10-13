@@ -1,0 +1,188 @@
+[
+  {
+    "source": "en",
+    "target": "es",
+    "input": "MARCH 5, 2026",
+    "expected": "MARZO 5, 2026"
+  },
+  {
+    "source": "en",
+    "target": "es",
+    "input": "march 5, 2026",
+    "expected": "marzo 5, 2026"
+  },
+  {
+    "source": "en",
+    "target": "es",
+    "input": "March 5, 2026",
+    "expected": "Marzo 5, 2026"
+  },
+  {
+    "source": "en",
+    "target": "es",
+    "input": "THURSDAY, MARCH 5, 2026",
+    "expected": "JUEVES, MARZO 5, 2026"
+  },
+  {
+    "source": "en",
+    "target": "es",
+    "input": "Wednesday",
+    "expected": "Miércoles"
+  },
+  {
+    "source": "en",
+    "target": "es",
+    "input": "WEDNESDAY",
+    "expected": "MIÉRCOLES"
+  },
+  {
+    "source": "en",
+    "target": "es",
+    "input": "MONDAY",
+    "expected": "LUNES"
+  },
+  {
+    "source": "en",
+    "target": "es",
+    "input": "monday",
+    "expected": "lunes"
+  },
+  {
+    "source": "es",
+    "target": "en",
+    "input": "MIÉRCOLES, MARZO 4, 2026",
+    "expected": "WEDNESDAY, MARCH 4, 2026"
+  },
+  {
+    "source": "en",
+    "target": "es",
+    "input": "May I help you?",
+    "expected": "May I help you?"
+  },
+  {
+    "source": "en",
+    "target": "es",
+    "input": "March forward",
+    "expected": "March forward"
+  },
+  {
+    "source": "en",
+    "target": "es",
+    "input": "Maybe this works",
+    "expected": "Maybe this works"
+  },
+  {
+    "source": "en",
+    "target": "es",
+    "input": "Monday sale 2026",
+    "expected": "Monday sale 2026"
+  },
+  {
+    "source": "en",
+    "target": "es",
+    "input": "DEC 27, 2025",
+    "expected": "DIC 27, 2025"
+  },
+  {
+    "source": "en",
+    "target": "es",
+    "input": "March 5, 2026 at 10:30 AM",
+    "expected": "Marzo 5, 2026 at 10:30 AM"
+  },
+  {
+    "source": "en",
+    "target": "es",
+    "input": "2026-03-05",
+    "expected": "2026-03-05"
+  },
+  {
+    "source": "en",
+    "target": "en",
+    "input": "March 5, 2026",
+    "expected": "March 5, 2026"
+  },
+  {
+    "source": "en",
+    "target": "pl",
+    "input": "March 5, 2026",
+    "expected": "Marca 5, 2026"
+  },
+  {
+    "source": "ja",
+    "target": "es",
+    "input": "3月",
+    "expected": "marzo"
+  },
+  {
+    "source": "en",
+    "target": "es",
+    "input": "MARCH 5, 2026",
+    "expected": "MARZO 5, 2026",
+    "dictionary": {
+      "MARCH 5, 2026": "MARZO"
+    }
+  },
+  {
+    "source": "en",
+    "target": "es",
+    "input": "March 5, 2026",
+    "expected": "5 de marzo de 2026",
+    "dictionary": {
+      "March 5, 2026": "5 de marzo de 2026"
+    }
+  },
+  {
+    "source": "en",
+    "target": "es",
+    "input": "March 5, 2026",
+    "expected": "Marzo 5, 2026",
+    "dictionary": {
+      "March 5, 2026": "Marzo 2026"
+    }
+  },
+  {
+    "source": "en",
+    "target": "es",
+    "input": "March 5, 2026",
+    "expected": "Marzo 5, 2026",
+    "dictionary": {
+      "March 5, 2026": "Marzo 5, 2025"
+    }
+  },
+  {
+    "source": "en",
+    "target": "es",
+    "input": "MARCH 5, 2026",
+    "expected": "MARZO 5, 2026",
+    "dictionary": {
+      "March": "marzo"
+    }
+  },
+  {
+    "source": "en",
+    "target": "es",
+    "input": "May I help you?",
+    "expected": "¿Te ayudo?",
+    "dictionary": {
+      "May I help you?": "¿Te ayudo?"
+    }
+  },
+  {
+    "source": "en",
+    "target": "es",
+    "input": "MARCH 5, 2026",
+    "expected": "MARZO 5, 2026",
+    "dictionary": {
+      "March": "marzo 2027"
+    }
+  },
+  {
+    "source": "en",
+    "target": "es",
+    "input": "March 05, 2026",
+    "expected": "5 de marzo de 2026",
+    "dictionary": {
+      "March 05, 2026": "5 de marzo de 2026"
+    }
+  }
+]

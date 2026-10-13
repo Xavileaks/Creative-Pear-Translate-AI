@@ -3,6 +3,8 @@
   const config = window.CPTAIFrontend;
   if (!config) return;
   const dictionary = config.dictionary || {};
+  const translate = config.scan ? text => text : window.CPTAICalendar?.create(config.calendar || {}, config.source, config.language, dictionary)
+    || (text => Object.prototype.hasOwnProperty.call(dictionary, text) ? dictionary[text] : text);
   const changes = new WeakMap();
   const pending = new Set();
   const seen = new Set();
@@ -38,14 +40,15 @@
     const raw = attribute ? node.getAttribute(attribute) : node.nodeValue;
     if (raw == null) return;
     const text = raw.trim();
+    if (!eligible(text)) return;
     if (config.scan && eligible(text) && !seen.has(text)) pending.add(text);
-    if (!Object.prototype.hasOwnProperty.call(dictionary, text)) return;
     const key = attribute || '#text';
     const record = changes.get(node) || {};
     if (record[key] === raw) return;
     const leading = raw.match(/^\s*/)[0];
     const trailing = raw.match(/\s*$/)[0];
-    const translated = leading + dictionary[text] + trailing;
+    const translated = leading + translate(text) + trailing;
+    if (translated === raw) return;
     record[key] = translated;
     changes.set(node, record);
     if (attribute) node.setAttribute(attribute, translated);

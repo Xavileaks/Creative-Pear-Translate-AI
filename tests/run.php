@@ -45,7 +45,7 @@ class WP_Http {
         return 'https://example.org/' . $url;
     }
 }
-foreach ( array( 'settings', 'provider', 'html', 'routing', 'frontend' ) as $file ) {
+foreach ( array( 'settings', 'provider', 'calendar', 'html', 'routing', 'frontend' ) as $file ) {
     require dirname( __DIR__ ) . '/includes/class-' . $file . '.php';
 }
 $checks = 0;

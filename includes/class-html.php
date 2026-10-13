@@ -65,9 +65,10 @@ final class CPTAI_HTML {
 
     public function render( array $dictionary, string $target ): string {
         foreach ( $this->segments as list( $node, $text ) ) {
-            if ( isset( $dictionary[ $text ] ) ) {
+            $translated = CPTAI_Calendar::translate( $text, CPTAI_Settings::get()['source'], $target, $dictionary );
+            if ( $translated !== $text ) {
                 // DOMText::nodeValue inserts plain text; HTML from a model can never execute.
-                $replacement = preg_replace_callback( '/^(\s*)(.*?)(\s*)$/su', static fn( $m ) => $m[1] . $dictionary[ $text ] . $m[3], $node->nodeValue );
+                $replacement = preg_replace_callback( '/^(\s*)(.*?)(\s*)$/su', static fn( $m ) => $m[1] . $translated . $m[3], $node->nodeValue );
                 if ( $node instanceof DOMAttr ) {
                     $node->ownerElement->setAttribute( $node->name, $replacement );
                 } else {

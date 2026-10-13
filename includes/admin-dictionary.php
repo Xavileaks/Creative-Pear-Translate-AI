@@ -10,7 +10,7 @@ defined( 'ABSPATH' ) || exit;
                     <div class="cptai-original">
                         <span class="cptai-field-label">Texto original</span>
                         <div class="cptai-original-text"><?php echo esc_html( $row->original ); ?></div>
-                        <p class="cptai-hint">Detectada en <a href="<?php echo esc_url( $row->source_url ); ?>" target="_blank" rel="noopener noreferrer">esta página</a> · <a href="<?php echo esc_url( CPTAI_Routing::url( $row->source_url, $target ) ); ?>" target="_blank" rel="noopener noreferrer">Ver traducción</a></p>
+                        <p class="cptai-hint">Referencia: <a href="<?php echo esc_url( $row->source_url ); ?>" target="_blank" rel="noopener noreferrer">esta página</a> · <a href="<?php echo esc_url( CPTAI_Routing::url( $row->source_url, $target ) ); ?>" target="_blank" rel="noopener noreferrer">Ver traducción</a></p>
                     </div>
                     <form class="cptai-string-form" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post">
                         <input type="hidden" name="action" value="cptai_edit"><input type="hidden" name="id" value="<?php echo esc_attr( $row->id ); ?>"><?php wp_nonce_field( 'cptai_edit' ); ?>

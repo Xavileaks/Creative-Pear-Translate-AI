@@ -16,6 +16,9 @@ jobs:
           test "$version" = "${GITHUB_REF_NAME#v}"
           find . -name '*.php' -not -path './.git/*' -print0 | xargs -0 -n1 php -l
           php tests/run.php
+          php tests/calendar.php
+          node tests/calendar.cjs
+          node --check assets/calendar.js
           node --check assets/admin.js
           node --check assets/frontend.js
       - name: Crear ZIP

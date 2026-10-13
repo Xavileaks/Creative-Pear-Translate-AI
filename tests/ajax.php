@@ -50,9 +50,33 @@ $same = cptai_call_ajax( 'save_string', array( 'id' => $id, 'translated' => 'Sav
 cptai_assert_ajax( $same['success'], 'idempotent save succeeds' );
 $clear = cptai_call_ajax( 'save_string', array( 'id' => $id, 'translated' => '', 'expected' => 'Saved %s' ) );
 cptai_assert_ajax( $clear['success'] && ! $clear['data']['translated'], 'clearing translation returns to original' );
+$manual_original = 'CPTAI manual success fixture %s';
+$manual = cptai_call_ajax( 'add_string', array( 'original' => $manual_original, 'translated' => 'Mensaje guardado %s', 'target' => 'en' ) );
+cptai_assert_ajax( $manual['success'], 'manual message added without HTML capture' );
+$duplicate = cptai_call_ajax( 'add_string', array( 'original' => $manual_original, 'translated' => 'Replacement %s', 'target' => 'en' ) );
+cptai_assert_ajax( ! $duplicate['success'] && ( CPTAI_Store::dictionary( 'es', 'en' )[ $manual_original ] ?? '' ) === 'Mensaje guardado %s', 'manual duplicates preserve previous translation' );
+$bad = cptai_call_ajax( 'add_string', array( 'original' => 'CPTAI rejected %s', 'translated' => 'Sin marcador', 'target' => 'en' ) );
+cptai_assert_ajax( ! $bad['success'], 'manual message rejects lost placeholders' );
+$bad = cptai_call_ajax( 'add_string', array( 'original' => '<script>alert(1)</script>', 'translated' => '', 'target' => 'en' ) );
+cptai_assert_ajax( ! $bad['success'], 'manual original rejects executable HTML' );
+$bad = cptai_call_ajax( 'add_string', array( 'original' => 'CPTAI invalid reference', 'translated' => '', 'target' => 'en', 'url' => 'https://other.example/contact/' ) );
+cptai_assert_ajax( ! $bad['success'], 'manual reference restricted to local public URL' );
+$pending = cptai_call_ajax( 'add_string', array( 'original' => 'CPTAI manual pending fixture', 'translated' => '', 'target' => 'en' ) );
+cptai_assert_ajax( $pending['success'], 'manual message can be added as pending' );
+$bad = cptai_call_ajax( 'add_string', array( 'original' => 'MARZO 5, 2026', 'translated' => 'MARCH', 'target' => 'en' ) );
+cptai_assert_ajax( ! $bad['success'], 'manual date cannot lose day and year' );
+CPTAI_Store::capture( array( 'MARZO 5, 2026' ), 'es', 'en', home_url( '/' ) );
+$date_id = $wpdb->get_var( "SELECT id FROM " . CPTAI_Store::table() . " WHERE original='MARZO 5, 2026' AND source_lang='es' AND target_lang='en'" );
+$bad = cptai_call_ajax( 'save_string', array( 'id' => $date_id, 'translated' => 'MARCH', 'expected' => '' ) );
+cptai_assert_ajax( ! $bad['success'], 'dictionary edit cannot lose date numbers' );
+$wpdb->query( $wpdb->prepare( 'DELETE FROM ' . CPTAI_Store::table() . ' WHERE source_lang=%s AND target_lang=%s AND original IN (%s,%s,%s)', 'es', 'en', $manual_original, 'CPTAI manual pending fixture', 'MARZO 5, 2026' ) );
 wp_set_current_user( 0 );
 ob_start();
 try { CPTAI_Admin::save_string(); } catch ( CPTAI_Test_Response $e ) {}
 $denied = ob_get_clean();
 cptai_assert_ajax( str_contains( $denied, 'No tienes permisos.' ) || '' === $denied, 'visitor save denied' );
+ob_start();
+try { CPTAI_Admin::add_string(); } catch ( CPTAI_Test_Response $e ) {}
+$denied = ob_get_clean();
+cptai_assert_ajax( str_contains( $denied, 'No tienes permisos.' ) || '' === $denied, 'visitor cannot add manual strings' );
 echo 'PASS: ' . $checks . " AJAX checks.\n";

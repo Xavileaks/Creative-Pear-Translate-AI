@@ -44,8 +44,13 @@ final class CPTAI_Frontend {
         if ( ( ! $scan && ! $target ) || self::sensitive() || is_preview() ) {
             return;
         }
-        wp_enqueue_script( 'cptai-frontend', plugins_url( 'assets/frontend.js', CPTAI_FILE ), array(), CPTAI_VERSION, true );
+        wp_enqueue_script( 'cptai-calendar', plugins_url( 'assets/calendar.js', CPTAI_FILE ), array(), CPTAI_VERSION, true );
+        wp_enqueue_script( 'cptai-frontend', plugins_url( 'assets/frontend.js', CPTAI_FILE ), array( 'cptai-calendar' ), CPTAI_VERSION, true );
         $config = array( 'dictionary' => (object) ( self::target() ? CPTAI_Store::dictionary( CPTAI_Settings::get()['source'], $target ) : array() ), 'language' => $target, 'languages' => CPTAI_Routing::languages(), 'home' => home_url( '/' ) );
+        $source = CPTAI_Settings::get()['source'];
+        $data = CPTAI_Calendar::data();
+        $config['calendar'] = array_intersect_key( $data, array_flip( array( $source, $target ) ) );
+        $config['source'] = $source;
         if ( $scan ) {
             $config['scan'] = array( 'target' => $scan, 'nonce' => wp_create_nonce( 'cptai_admin' ), 'ajax' => admin_url( 'admin-ajax.php' ), 'url' => CPTAI_Routing::source_url( self::current_url() ), 'backend' => admin_url( 'admin.php?page=creative-pear-translate-ai&target=' . $scan ), 'gettext' => array_keys( self::$gettext_strings ) );
             nocache_headers();
