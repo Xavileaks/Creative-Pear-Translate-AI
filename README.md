@@ -2,16 +2,24 @@
 
 Plugin independiente de WordPress para detectar cadenas de texto y editarlas desde el backend. Una misma cadena se guarda una sola vez por idioma: cambiar «Añadir al carrito» aplica esa traducción en todas sus coincidencias exactas, también en otras páginas. La traducción con OpenAI o Claude es opcional; no requiere TranslatePress ni utiliza Google Translate.
 
-Esta es la copia Creative Pear de la versión 1.0.0. Usa sus propios identificadores, opciones, tablas, claves, acciones y shortcode; se configura por separado. Conserva las mismas funciones de la versión original.
+Creative Pear se desarrolla por separado y conserva sus propios identificadores, opciones, tablas, claves, acciones y shortcode.
+
+## Panel y rutas de idioma (1.1.0)
+
+Panel rediseñado con 12UI, en blanco, gris y azul. El menú de WordPress muestra **CPT AI**. Cada cadena tiene dos columnas iguales en escritorio: original y traducción. En 1024 px o menos se apilan. Los ajustes de idiomas y API usan el mismo sistema visual.
+
+Las traducciones y los ajustes se guardan por AJAX con un aviso flotante, sin recargar. El botón se activa al editar; muestra guardando y solo confirma después de una respuesta correcta. Si hay un error, conserva la edición. Los cambios posteriores al inicio de una petición siguen pendientes. Una edición concurrente desde otra sesión genera un aviso en lugar de sobrescribirla.
+
+Las URLs usan carpetas de idioma: **`/es/`**, **`/en/`**, **`/fr/`**, también para el idioma original. Una página mantiene su ruta, por ejemplo `/es/servicios/diseno/`. Funcionan portada, páginas anidadas, entradas, categorías y reglas nativas de paginación. Los enlaces internos y el selector conservan el idioma; las URLs antiguas `?cptai_lang=es` redirigen a la carpeta. Activa enlaces permanentes con nombre de entrada en WordPress si todavía usas URLs simples. Las reglas se actualizan al activar/actualizar el plugin o cambiar idiomas/portada.
 
 ## Primera instalación
 
 1. Instala **creative-pear-translate-ai.zip** desde **Plugins → Añadir plugin → Subir plugin** y actívalo.
-2. Abre **Creative Pear Translate AI → Idiomas y conexión API**, elige el idioma original y los destinos, y guarda.
+2. Abre **CPT AI → Ajustes**, elige el idioma original y los destinos, y guarda.
 3. En **Capturar cadenas de una página**, introduce su URL pública y el destino. **Leer HTML** detecta el HTML generado por WordPress. No necesita clave API.
 4. **Captura en navegador** abre la página con una sesión autorizada. Detecta texto, atributos y nuevas cadenas que aparezcan con JavaScript/AJAX; abre los menús o desplegables que quieras capturar. Regresa al backend y pulsa **Filtrar / actualizar**.
-5. Busca una cadena, escribe su traducción y pulsa **Guardar para todas las apariciones**. Para volver al original, vacía la traducción y guarda.
-6. Muestra el selector al pie desde los ajustes o añade `[creative_pear_language_switcher]` en un bloque, shortcode o widget Elementor. También puedes abrir una página añadiendo `?cptai_lang=en`.
+5. Busca una cadena, escribe su traducción y pulsa **Guardar**. Se aplica a todas sus apariciones para ese idioma. Para volver al original, vacía la traducción y guarda.
+6. Muestra el selector al pie desde los ajustes o añade `[creative_pear_language_switcher]` en un bloque, shortcode o widget Elementor. También puedes abrir una página en `/es/`, `/en/`, etc.
 
 ## IA opcional
 
@@ -21,7 +29,7 @@ Introduce una clave de OpenAI o Anthropic en WordPress, guarda y pulsa **Consult
 
 Los errores de API se muestran sin exponer claves ni respuestas completas. Los resultados deben ser un array JSON completo, sin HTML y con los marcadores conservados. No hay llamadas de IA por visitas ni traducción automática que genere gasto sin pulsar un botón.
 
-## Detección y alcance de la versión 1.0.0
+## Detección y alcance
 
 - Textos del HTML, títulos de pestaña, etiquetas `alt`, `title`, `placeholder`, `aria-label`, botones `input` y metadescripciones. La captura recoge nuevos nodos/atributos tras JavaScript o AJAX. La opción avanzada **Incluir también cadenas internas** captura además mensajes localizados de WordPress/plugins, incluso si no están renderizados; puede añadir muchas filas. Las traducciones de mensajes PHP se aplican también mediante los filtros gettext y plurales.
 - Diccionario compartido por idioma original + destino + hash del texto exacto. Ignora espacios al principio y al final; mayúsculas, puntuación y espacios interiores distinguen cadenas. Un texto actualizado queda pendiente, sin heredar una traducción antigua.
@@ -31,8 +39,8 @@ Los errores de API se muestran sin exponer claves ni respuestas completas. Los r
 - La lectura HTML obtiene la versión pública anónima, sin reenviar cookies ni autorizaciones. La captura en navegador requiere un administrador; úsala en páginas públicas. No captures contenidos personales ni zonas privadas. Se excluyen carrito, checkout y cuenta de WooCommerce.
 - La lectura limita cada documento a 2 MB y cada cadena a 3.500 bytes. Las zonas dinámicas necesitan abrirse durante la captura; no se extraen mensajes que todavía no se hayan renderizado.
 - La misma cadena usa una sola traducción por idioma, incluso si aparece en contextos con significados diferentes. Esta versión no incorpora excepciones por contexto.
-- Las variantes de idioma son parámetros de URL, con `noindex,follow`. **No incluye URLs SEO por carpetas, slugs traducidos, sitemaps multilingües ni un editor visual equivalente al de TranslatePress.**
-- Configura tu caché/CDN para respetar `cptai_lang` o excluir las páginas con ese parámetro. El plugin desactiva la caché de WordPress cuando procesa una variante, pero no controla capas que responden antes de cargar WordPress.
+- Las variantes traducidas usan carpetas de idioma y conservan `noindex` hasta incorporar una configuración de SEO multilingüe. **No incluye slugs traducidos, sitemaps multilingües ni un editor visual equivalente al de TranslatePress.** Las carpetas de los idiomas configurados quedan reservadas para las variantes.
+- Configura tu caché/CDN para diferenciar las carpetas de idioma. El plugin desactiva la caché de WordPress cuando procesa una variante, pero no controla capas que responden antes de cargar WordPress.
 
 ## Claves y datos
 
@@ -46,7 +54,7 @@ La tabla `{prefijo}cptai_strings` guarda original, traducción, idiomas y primer
 
 WordPress 6.4+, PHP 8.1+ con DOM, OpenSSL y mbstring. Para IA, conexiones HTTPS salientes a `api.openai.com` o `api.anthropic.com`.
 
-Pruebas sin servicios externos: `php tests/run.php`. Pruebas en WordPress aislado: `php tests/wordpress.php /ruta/a/wordpress`; el entorno debe ser `local`. Los fixtures usan respuestas simuladas y no llaman a APIs de IA. Las pruebas y herramientas de desarrollo se excluyen del ZIP.
+Pruebas sin servicios externos: `php tests/run.php`. Pruebas en WordPress aislado: `php tests/wordpress.php /ruta/a/wordpress`, `php tests/ajax.php /ruta/a/wordpress` y `php tests/routing.php /ruta/a/wordpress`; el entorno debe ser `local`. `tests/coexistence.php` comprueba identificadores independientes con XLeon instalado en ese entorno. Los fixtures usan respuestas simuladas y no llaman a APIs de IA. Las pruebas y herramientas de desarrollo se excluyen del ZIP.
 
 Se consultaron las interfaces oficiales: [OpenAI Responses](https://developers.openai.com/api/docs/guides/text) y [Anthropic Messages](https://platform.claude.com/docs/en/api/messages/create).
 
@@ -54,4 +62,4 @@ El ZIP TranslatePress 3.3.8 facilitado por el usuario se revisó como referencia
 
 ## Publicación
 
-Las etiquetas `v*` validan PHP, ejecutan las pruebas y generan `creative-pear-translate-ai.zip` como archivo instalable de GitHub Releases. Instala ese archivo, no el ZIP automático del código fuente. Versión inicial: **1.0.0**.
+Las etiquetas `v*` validan PHP y JavaScript, ejecutan las pruebas y generan `creative-pear-translate-ai.zip` como archivo instalable de GitHub Releases. Instala ese archivo, no el ZIP automático del código fuente. Versión actual: **1.1.0**. La actualización conserva las traducciones y claves de la versión 1.0.0.

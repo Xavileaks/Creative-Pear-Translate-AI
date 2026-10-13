@@ -5,6 +5,7 @@ if ( empty( $argv[1] ) || ! is_file( $argv[1] . '/wp-load.php' ) ) {
     exit( 1 );
 }
 define( 'WP_INSTALLING', true );
+define( 'WP_DISABLE_FATAL_ERROR_HANDLER', true );
 $_SERVER['HTTP_HOST'] = '127.0.0.1:8764';
 $_SERVER['REQUEST_METHOD'] = 'GET';
 $_SERVER['REQUEST_URI'] = '/';
@@ -22,6 +23,7 @@ if ( is_wp_error( $activation ) ) {
     throw new RuntimeException( $activation->get_error_message() );
 }
 require_once WP_PLUGIN_DIR . '/creative-pear-translate-ai/creative-pear-translate-ai.php';
+CPTAI_Routing::boot();
 CPTAI_Store::install();
 $checks = 0;
 function verify_cptai( bool $condition, string $name ): void {
@@ -70,7 +72,7 @@ $_GET['s'] = 'Comprar';
 ob_start(); CPTAI_Admin::page(); $admin_html = ob_get_clean();
 unset( $_GET['s'] );
 verify_cptai( str_contains( $admin_html, 'Comprar' ) && str_contains( $admin_html, 'Guardar para todas las apariciones' ), 'native backend renders dictionary' );
-verify_cptai( str_contains( $admin_html, 'value="" class="regular-text" autocomplete="new-password"' ), 'API fields are always empty' );
+verify_cptai( str_contains( $admin_html, 'value="" autocomplete="new-password"' ), 'API fields are always empty' );
 wp_set_current_user( 0 );
 $_GET['cptai_scan'] = 'en'; $_GET['_cptai_nonce'] = wp_create_nonce( 'cptai_scan' );
 verify_cptai( '' === CPTAI_Frontend::scan_target(), 'visitors cannot enable capture' );

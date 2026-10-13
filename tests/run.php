@@ -16,9 +16,17 @@ function wp_parse_args( $args, $defaults ) { return array_merge( $defaults, $arg
 function wp_salt( $scheme ) { return 'isolated-test-salt-no-real-secret'; }
 function sanitize_key( $key ) { return preg_replace( '/[^a-z0-9_\-]/', '', strtolower( $key ) ); }
 function wp_json_encode( $value, $flags = 0 ) { return json_encode( $value, $flags ); }
-function wp_parse_url( $url ) { return parse_url( $url ); }
-function home_url( $path = '' ) { return 'https://example.org' . $path; }
+function wp_parse_url( $url, $component = -1 ) { return parse_url( $url, $component ); }
+function home_url( $path = '' ) { return ( $GLOBALS['test_home'] ?? 'https://example.org' ) . $path; }
 function wp_unslash( $value ) { return $value; }
+function flush_rewrite_rules( $hard = true ) {}
+function remove_query_arg( $keys, $url ) {
+    $fragment = ''; $parts = explode( '#', $url, 2 ); $url = $parts[0];
+    if ( isset( $parts[1] ) ) { $fragment = '#' . $parts[1]; }
+    $parts = explode( '?', $url, 2 ); parse_str( $parts[1] ?? '', $query );
+    foreach ( (array) $keys as $key ) { unset( $query[ $key ] ); }
+    return $parts[0] . ( $query ? '?' . http_build_query( $query ) : '' ) . $fragment;
+}
 function add_query_arg( $key, $value, $url ) {
     $fragment = ''; $parts = explode( '#', $url, 2 ); $url = $parts[0];
     if ( isset( $parts[1] ) ) { $fragment = '#' . $parts[1]; }
@@ -37,7 +45,7 @@ class WP_Http {
         return 'https://example.org/' . $url;
     }
 }
-foreach ( array( 'settings', 'provider', 'html', 'frontend' ) as $file ) {
+foreach ( array( 'settings', 'provider', 'html', 'routing', 'frontend' ) as $file ) {
     require dirname( __DIR__ ) . '/includes/class-' . $file . '.php';
 }
 $checks = 0;
@@ -103,12 +111,25 @@ check( str_contains( $unicode_rendered, 'content:"Botón dinámico"' ), 'Unicode
 check( str_contains( $rendered, 'lang="en"' ) && str_contains( $rendered, 'noindex,follow' ), 'language and indexing correct' );
 check( str_contains( $rendered, 'C &amp; D' ), 'plain text ampersands serialized safely' );
 check( str_contains( $rendered, 'content="C &amp; D"' ), 'ampersands in attributes preserved' );
-check( str_contains( $rendered, 'href="https://example.org/shop/?cptai_lang=en"' ), 'internal navigation retains language' );
+check( str_contains( $rendered, 'href="https://example.org/en/shop/"' ), 'internal navigation retains language folder' );
 check( str_contains( $rendered, '<a href="/">Espa' ), 'switcher links preserved' );
 foreach ( array( '/?add-to-cart=1', '/wp-admin/', 'https://other.org/page', '/file.pdf', '#fragment', 'mailto:hello@example.org', 'https://example.org:444/' ) as $url ) {
     check( $url === CPTAI_Frontend::link( $url, 'en' ), 'unsafe or external navigation untouched: ' . $url );
 }
 check( ! CPTAI_Frontend::local_url( 'https://user:pass@example.org/' ), 'URL credentials rejected' );
+check( 'https://example.org/es/shop/?paged=2#items' === CPTAI_Routing::url( 'https://example.org/en/shop/?paged=2#items', 'es' ), 'changing language replaces prefix and preserves query and fragment' );
+check( 'https://example.org/shop/' === CPTAI_Routing::source_url( 'https://example.org/en/shop/?cptai_lang=en' ), 'canonical source URL removes language prefix and legacy parameter' );
+check( 'https://example.org/es/' === CPTAI_Routing::url( 'https://example.org/', 'es' ), 'source language also has a folder' );
+check( '' === CPTAI_Routing::language( 'https://example.org/unknown/shop/' ), 'unknown prefix ignored' );
+$rules = CPTAI_Routing::rules( array( '^shop/([^/]+)/?$' => 'index.php?product=$matches[1]', '^wp-json/(.*)' => 'index.php?rest_route=/$matches[1]' ) );
+check( 'index.php?product=$matches[1]&cptai_lang=en' === $rules['^en/shop/([^/]+)/?$'], 'native rewrite captures are unchanged' );
+check( ! isset( $rules['^en/wp-json/(.*)'] ), 'REST routes not prefixed' );
+check( isset( $rules['^es/?$'] ), 'source-language root rule exists' );
+$GLOBALS['test_home'] = 'https://example.org/blog';
+check( 'https://example.org/blog/es/services/' === CPTAI_Routing::url( 'https://example.org/blog/en/services/', 'es' ), 'language folders work in WordPress subdirectories' );
+check( 'https://example.org/blog/services/' === CPTAI_Routing::source_url( 'https://example.org/blog/es/services/' ), 'source path preserves WordPress subdirectory' );
+check( 'es' === CPTAI_Routing::language( 'https://example.org/blog/ES/services/' ), 'language prefix matching is case insensitive' );
+unset( $GLOBALS['test_home'] );
 CPTAI_Settings::save( array( 'source' => 'es', 'targets' => array( 'en' ), 'forget_openai' => 1 ) );
 check( '' === CPTAI_Settings::key( 'openai' ), 'forget saved key' );
 echo 'PASS: ' . $checks . " regression checks, no external requests.\n";

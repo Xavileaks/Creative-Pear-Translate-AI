@@ -40,14 +40,14 @@ final class CPTAI_Frontend {
 
     public static function scripts(): void {
         $scan = self::scan_target();
-        $target = self::target();
+        $target = CPTAI_Routing::language() ?: self::target();
         if ( ( ! $scan && ! $target ) || self::sensitive() || is_preview() ) {
             return;
         }
         wp_enqueue_script( 'cptai-frontend', plugins_url( 'assets/frontend.js', CPTAI_FILE ), array(), CPTAI_VERSION, true );
-        $config = array( 'dictionary' => (object) ( $target ? CPTAI_Store::dictionary( CPTAI_Settings::get()['source'], $target ) : array() ) );
+        $config = array( 'dictionary' => (object) ( self::target() ? CPTAI_Store::dictionary( CPTAI_Settings::get()['source'], $target ) : array() ), 'language' => $target, 'languages' => CPTAI_Routing::languages(), 'home' => home_url( '/' ) );
         if ( $scan ) {
-            $config['scan'] = array( 'target' => $scan, 'nonce' => wp_create_nonce( 'cptai_admin' ), 'ajax' => admin_url( 'admin-ajax.php' ), 'url' => remove_query_arg( array( 'cptai_scan', '_cptai_nonce', 'cptai_lang' ), self::current_url() ), 'backend' => admin_url( 'admin.php?page=creative-pear-translate-ai&target=' . $scan ), 'gettext' => array_keys( self::$gettext_strings ) );
+            $config['scan'] = array( 'target' => $scan, 'nonce' => wp_create_nonce( 'cptai_admin' ), 'ajax' => admin_url( 'admin-ajax.php' ), 'url' => CPTAI_Routing::source_url( self::current_url() ), 'backend' => admin_url( 'admin.php?page=creative-pear-translate-ai&target=' . $scan ), 'gettext' => array_keys( self::$gettext_strings ) );
             nocache_headers();
         }
         wp_add_inline_script( 'cptai-frontend', 'window.CPTAIFrontend=' . wp_json_encode( $config, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT ) . ';', 'before' );
@@ -61,7 +61,10 @@ final class CPTAI_Frontend {
 
     public static function target(): string {
         $settings = CPTAI_Settings::get();
-        $target = isset( $_GET['cptai_lang'] ) && is_string( $_GET['cptai_lang'] ) ? sanitize_key( wp_unslash( $_GET['cptai_lang'] ) ) : '';
+        $target = CPTAI_Routing::language();
+        if ( ! $target ) {
+            $target = isset( $_GET['cptai_lang'] ) && is_string( $_GET['cptai_lang'] ) ? sanitize_key( wp_unslash( $_GET['cptai_lang'] ) ) : '';
+        }
         return in_array( $target, $settings['targets'], true ) ? $target : '';
     }
 
@@ -73,7 +76,7 @@ final class CPTAI_Frontend {
             nocache_headers();
             return;
         }
-        if ( self::scan_target() || '' === self::target() || is_admin() || wp_doing_ajax() || is_feed() || is_robots() || is_trackback()
+        if ( '' === ( CPTAI_Routing::language() ?: self::target() ) || is_admin() || wp_doing_ajax() || is_feed() || is_robots() || is_trackback()
             || is_preview() || self::sensitive() || 'GET' !== ( $_SERVER['REQUEST_METHOD'] ?? 'GET' ) ) {
             return;
         }
@@ -88,13 +91,13 @@ final class CPTAI_Frontend {
         if ( ! class_exists( 'DOMDocument' ) || strlen( $html ) > 2097152 || stripos( $html, '<html' ) === false ) {
             return $html;
         }
-        $target = self::target();
+        $target = CPTAI_Routing::language() ?: self::target();
         if ( '' === $target ) {
             return $html;
         }
         try {
             $document = new CPTAI_HTML( $html );
-            $dictionary = CPTAI_Store::find( $document->strings(), CPTAI_Settings::get()['source'], $target );
+            $dictionary = self::target() ? CPTAI_Store::find( $document->strings(), CPTAI_Settings::get()['source'], $target ) : array();
             return $document->render( $dictionary, $target );
         } catch ( Throwable $e ) {
             return $html;
@@ -126,7 +129,7 @@ final class CPTAI_Frontend {
             || preg_match( '/\.(?:pdf|zip|jpg|jpeg|png|gif|webp|svg|mp4|mp3|css|js|xml|json)$/i', $parts['path'] ?? '' ) ) {
             return $url;
         }
-        return add_query_arg( 'cptai_lang', $target, $absolute );
+        return CPTAI_Routing::url( $absolute, $target );
     }
 
     public static function current_url(): string {
@@ -139,11 +142,11 @@ final class CPTAI_Frontend {
     public static function switcher(): string {
         $settings = CPTAI_Settings::get();
         $names = CPTAI_Settings::languages();
-        $url = remove_query_arg( array( 'cptai_lang', 'cptai_scan', '_cptai_nonce' ), self::current_url() );
-        $current = self::target() ?: $settings['source'];
+        $url = CPTAI_Routing::source_url( self::current_url() );
+        $current = CPTAI_Routing::language() ?: ( self::target() ?: $settings['source'] );
         $links = array();
         foreach ( array_unique( array_merge( array( $settings['source'] ), $settings['targets'] ) ) as $language ) {
-            $destination = $language === $settings['source'] ? $url : add_query_arg( 'cptai_lang', $language, $url );
+            $destination = CPTAI_Routing::url( $url, $language );
             $links[] = '<a href="' . esc_url( $destination ) . '" lang="' . esc_attr( $language ) . '" hreflang="' . esc_attr( $language ) . '"' . ( $language === $current ? ' aria-current="true"' : '' ) . ' style="display:inline-block;padding:8px 12px">' . esc_html( $names[ $language ] ) . '</a>';
         }
         return '<nav class="cptai-switcher notranslate" translate="no" aria-label="Idiomas">' . implode( ' ', $links ) . '</nav>';

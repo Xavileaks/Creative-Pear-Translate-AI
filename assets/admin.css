@@ -1,0 +1,130 @@
+/* Layout and visual tokens adapted from the selected 12UI A responsive export.
+   Native WordPress chrome stays outside this scoped interface. */
+#cptai-app {
+  --cptai-blue: #245bff;
+  --cptai-blue-hover: #1748da;
+  --cptai-text: #20304b;
+  --cptai-muted: #60718b;
+  --cptai-line: #dee5ef;
+  --cptai-soft: #f5f7fc;
+  --cptai-white: #ffffff;
+  --cptai-error: #b42318;
+  color: var(--cptai-text);
+  background: var(--cptai-white);
+  border: 1px solid var(--cptai-line);
+  border-radius: 8px;
+  margin: 24px 20px 24px 0;
+  max-width: 1520px;
+  font: 13px/1.55 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  box-sizing: border-box;
+}
+#cptai-app *, #cptai-app *::before, #cptai-app *::after { box-sizing: border-box; }
+#cptai-app [hidden] { display: none !important; }
+#cptai-app h1, #cptai-app h2, #cptai-app h3, #cptai-app p { color: inherit; margin: 0; }
+#cptai-app h1 { font-size: 18px; line-height: 1.4; font-weight: 600; color: #182336; padding: 0; }
+#cptai-app h2 { font-size: 17px; line-height: 1.4; font-weight: 700; color: #182336; }
+#cptai-app h3 { font-size: 14px; font-weight: 650; margin-bottom: 14px; }
+#cptai-app a { color: var(--cptai-blue); }
+#cptai-app a:hover { color: var(--cptai-blue-hover); }
+#cptai-app code { background: #eef2f8; border-radius: 3px; padding: 2px 5px; font-size: 11px; }
+#cptai-app .cptai-app-header { display: flex; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--cptai-line); }
+#cptai-app .cptai-emblem { width: 24px; height: 24px; object-fit: contain; }
+#cptai-app .cptai-version { color: var(--cptai-muted); font-size: 11px; border: 1px solid var(--cptai-line); border-radius: 4px; padding: 2px 7px; margin-left: auto; }
+#cptai-app .cptai-body { padding: 18px; background: var(--cptai-soft); border-radius: 0 0 8px 8px; }
+#cptai-app .cptai-lead { color: var(--cptai-muted); margin: 7px 0 16px; }
+#cptai-app .cptai-panel { background: var(--cptai-white); border: 1px solid var(--cptai-line); border-radius: 8px; padding: 16px; }
+#cptai-app .cptai-capture-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+#cptai-app .cptai-capture-row + .cptai-capture-row { margin-top: 12px; }
+#cptai-app .cptai-capture-label { flex: 0 0 110px; }
+#cptai-app .cptai-url { flex: 1; min-width: 180px; }
+#cptai-app input[type='text'], #cptai-app input[type='url'], #cptai-app input[type='password'], #cptai-app input[type='search'], #cptai-app select, #cptai-app textarea {
+  background: var(--cptai-white); color: var(--cptai-text); border: 1px solid var(--cptai-line); border-radius: 4px; box-shadow: none; min-height: 38px; font: inherit; margin: 0; padding: 7px 11px; max-width: 100%;
+}
+#cptai-app select { padding-right: 30px; }
+#cptai-app input::placeholder, #cptai-app textarea::placeholder { color: #7b8ca5; }
+#cptai-app input:focus, #cptai-app select:focus, #cptai-app textarea:focus { border-color: var(--cptai-blue); outline: 2px solid #cddaff; outline-offset: 1px; box-shadow: none; }
+#cptai-app .cptai-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 38px; border: 1px solid #6b8aff; border-radius: 4px; background: var(--cptai-white); color: var(--cptai-blue); padding: 7px 13px; margin: 0; font: inherit; font-weight: 550; line-height: 1.4; text-decoration: none; cursor: pointer; transition: background .15s, border-color .15s; }
+#cptai-app .cptai-button:hover { background: #f1f5ff; border-color: var(--cptai-blue); }
+#cptai-app .cptai-button-primary { background: var(--cptai-blue); border-color: var(--cptai-blue); color: var(--cptai-white); }
+#cptai-app .cptai-button-primary:hover { background: var(--cptai-blue-hover); border-color: var(--cptai-blue-hover); }
+#cptai-app .cptai-button:focus-visible, #cptai-app summary:focus-visible { outline: 3px solid #b8caff; outline-offset: 3px; box-shadow: none; }
+#cptai-app .cptai-button:disabled { background: #edf1f7; color: #78869d; border-color: #e1e7f0; cursor: default; }
+#cptai-app .cptai-app-header .cptai-button { min-height: 32px; padding: 5px 11px; }
+#cptai-app .cptai-hint { color: var(--cptai-muted); font-size: 12px; margin-top: 13px; }
+#cptai-app #cptai-status:empty { display: none; }
+#cptai-app #cptai-status { color: var(--cptai-text); margin-top: 12px; }
+#cptai-app .cptai-dictionary { margin-top: 16px; padding: 14px 12px 12px; }
+#cptai-app .cptai-dictionary h2 { font-size: 16px; margin-bottom: 14px; }
+#cptai-app .cptai-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+#cptai-app .cptai-filter-language { display: flex; align-items: center; gap: 10px; }
+#cptai-app .cptai-search-wrap { position: relative; min-width: 200px; width: 280px; max-width: 100%; }
+#cptai-app .cptai-search-wrap img { position: absolute; width: 16px; height: 16px; left: 11px; top: 11px; pointer-events: none; }
+#cptai-app .cptai-search-wrap input { width: 100%; padding-left: 36px; }
+#cptai-app .cptai-check { display: inline-flex; align-items: center; gap: 7px; color: var(--cptai-muted); }
+#cptai-app input[type='checkbox'] { border: 1px solid #95a4ba; margin: 0; width: 16px; height: 16px; border-radius: 3px; box-shadow: none; }
+#cptai-app input[type='checkbox']:checked::before { color: var(--cptai-blue); }
+#cptai-app .cptai-dictionary-count { color: var(--cptai-muted); font-size: 12px; margin: 16px 0; }
+#cptai-app .cptai-column-headings { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); background: #f2f5fa; border: 1px solid var(--cptai-line); border-radius: 4px 4px 0 0; font-weight: 600; color: #536581; }
+#cptai-app .cptai-column-headings span { padding: 9px 14px; }
+#cptai-app .cptai-string-row { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); border: 1px solid var(--cptai-line); border-top: 0; background: var(--cptai-white); min-width: 0; }
+#cptai-app .cptai-string-row:last-child { border-radius: 0 0 4px 4px; }
+#cptai-app .cptai-original, #cptai-app .cptai-string-form { margin: 0; min-width: 0; padding: 14px; }
+#cptai-app .cptai-string-form { border-left: 1px solid #e8edf5; }
+#cptai-app .cptai-original-text { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 260px; overflow: auto; font-size: 14px; line-height: 1.6; color: #26364e; }
+#cptai-app .cptai-original .cptai-hint { margin-top: 6px; font-size: 11px; }
+#cptai-app .cptai-original a { text-decoration: none; }
+#cptai-app .cptai-textarea-wrap { position: relative; }
+#cptai-app .cptai-textarea-wrap::after { content: ''; position: absolute; right: 3px; bottom: 5px; width: 9px; height: 8px; background: url('design/cutout-102-4995941021e5.png') center/contain no-repeat; pointer-events: none; }
+#cptai-app .cptai-string-row:nth-child(3n+2) .cptai-textarea-wrap::after { background-image: url('design/cutout-109-6533a2766562.png'); }
+#cptai-app .cptai-string-row:nth-child(3n) .cptai-textarea-wrap::after { background-image: url('design/cutout-116-d8c649d6e702.png'); }
+#cptai-app textarea { display: block; width: 100%; min-height: 60px; resize: vertical; line-height: 1.6; }
+#cptai-app .cptai-row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+#cptai-app .cptai-row-actions .cptai-button { min-height: 34px; padding: 6px 13px; font-size: 12px; }
+#cptai-app .cptai-row-status { font-size: 11px; color: var(--cptai-muted); margin-left: auto; }
+#cptai-app .is-dirty .cptai-row-status { color: var(--cptai-blue); }
+#cptai-app .cptai-field-label { display: none; color: var(--cptai-muted); margin-bottom: 6px; font-size: 11px; font-weight: 600; }
+#cptai-app .cptai-empty { padding: 30px 18px; border: 1px solid var(--cptai-line); border-radius: 5px; color: var(--cptai-muted); text-align: center; }
+#cptai-app .cptai-pagination { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 6px; }
+#cptai-app .cptai-pagination .page-numbers { display: inline-flex; align-items: center; justify-content: center; min-width: 34px; min-height: 34px; padding: 5px 9px; border: 1px solid var(--cptai-line); border-radius: 4px; text-decoration: none; }
+#cptai-app .cptai-pagination .current { color: var(--cptai-white); background: var(--cptai-blue); border-color: var(--cptai-blue); }
+#cptai-app .cptai-settings { margin: 16px 0 0; }
+#cptai-app .cptai-settings summary { cursor: pointer; color: var(--cptai-text); font-weight: 600; padding: 12px 0; }
+#cptai-app .cptai-settings-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+#cptai-app .cptai-setting-card { border: 1px solid var(--cptai-line); border-radius: 5px; background: var(--cptai-white); padding: 16px; min-width: 0; }
+#cptai-app .cptai-setting-card label:not(.cptai-check) { display: block; margin-bottom: 6px; font-weight: 550; }
+#cptai-app .cptai-setting-card input[type='text'], #cptai-app .cptai-setting-card input[type='password'], #cptai-app .cptai-setting-card select { width: 100%; }
+#cptai-app .cptai-setting-field + .cptai-setting-field { margin-top: 16px; }
+#cptai-app .cptai-languages { display: flex; gap: 12px 18px; flex-wrap: wrap; }
+#cptai-app .cptai-key-clear { margin-top: 10px; font-size: 12px; }
+#cptai-app .cptai-model-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+#cptai-app .cptai-model-row input { flex: 1; min-width: 180px; }
+#cptai-app .cptai-settings-footer { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding-top: 16px; }
+#cptai-app .cptai-settings-footer .cptai-hint { flex: 1; min-width: 200px; margin: 0; }
+#cptai-app #cptai-toast { position: fixed; right: 24px; bottom: 24px; z-index: 100001; display: flex; align-items: center; gap: 12px; width: max-content; max-width: min(440px,calc(100vw - 32px)); padding: 15px 16px; background: var(--cptai-blue); color: var(--cptai-white); border-radius: 7px; box-shadow: 0 8px 20px rgba(30,52,92,.18); animation: cptai-toast-enter .16s ease-out; }
+#cptai-app #cptai-toast.is-error { background: var(--cptai-error); }
+#cptai-app .cptai-toast-icon { width: 22px; height: 22px; flex: none; }
+#cptai-app #cptai-toast-text { font-size: 13px; line-height: 1.5; }
+#cptai-app #cptai-toast-close { display: grid; place-items: center; width: 28px; height: 28px; flex: none; background: none; border: 0; border-radius: 4px; padding: 5px; cursor: pointer; color: inherit; }
+#cptai-app #cptai-toast-close img { width: 14px; height: 14px; }
+#cptai-app #cptai-toast-close:hover, #cptai-app #cptai-toast-close:focus-visible { background: #ffffff26; outline: 1px solid #ffffffaa; }
+@keyframes cptai-toast-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (max-width:1024px) {
+  #cptai-app .cptai-string-row, #cptai-app .cptai-settings-grid { grid-template-columns: minmax(0,1fr); }
+  #cptai-app .cptai-column-headings { display: none; }
+  #cptai-app .cptai-field-label { display: block; }
+  #cptai-app .cptai-string-form { border-left: 0; border-top: 1px solid #e8edf5; }
+}
+@media (max-width:600px) {
+  #cptai-app { margin: 14px 10px 14px 0; }
+  #cptai-app .cptai-app-header { padding: 14px; flex-wrap: wrap; gap: 9px; }
+  #cptai-app h1 { font-size: 16px; }
+  #cptai-app .cptai-body { padding: 12px; }
+  #cptai-app .cptai-panel { padding: 12px; }
+  #cptai-app .cptai-capture-label { flex-basis: 100%; }
+  #cptai-app .cptai-url, #cptai-app .cptai-search-wrap { width: 100%; flex-basis: 100%; min-width: 0; }
+  #cptai-app .cptai-button { min-height: 42px; }
+  #cptai-app .cptai-row-actions .cptai-button { min-height: 38px; }
+  #cptai-app .cptai-row-status { width: 100%; margin-left: 0; }
+  #cptai-app #cptai-toast { right: 16px; bottom: 16px; }
+}
+@media (prefers-reduced-motion:reduce) { #cptai-app *, #cptai-app *::before, #cptai-app *::after { animation: none !important; transition: none !important; } }

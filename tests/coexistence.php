@@ -5,6 +5,7 @@ if ( empty( $argv[1] ) || ! is_file( $argv[1] . '/wp-load.php' ) ) {
     exit( 1 );
 }
 define( 'WP_INSTALLING', true );
+define( 'WP_DISABLE_FATAL_ERROR_HANDLER', true );
 $_SERVER['HTTP_HOST'] = '127.0.0.1:8764';
 $_SERVER['REQUEST_METHOD'] = 'GET';
 $_SERVER['REQUEST_URI'] = '/';

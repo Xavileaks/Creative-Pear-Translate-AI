@@ -45,6 +45,7 @@ final class CPTAI_Settings {
 
     public static function save( array $input ) {
         $settings = self::get();
+        $previous = $settings;
         $languages = self::languages();
         $source = sanitize_key( $input['source'] ?? '' );
         if ( ! isset( $languages[ $source ] ) ) {
@@ -68,6 +69,9 @@ final class CPTAI_Settings {
             }
         }
         update_option( 'cptai_settings', $settings, false );
+        if ( class_exists( 'CPTAI_Routing' ) && ( $previous['source'] !== $settings['source'] || $previous['targets'] !== $settings['targets'] ) ) {
+            CPTAI_Routing::flush();
+        }
         return true;
     }
 }

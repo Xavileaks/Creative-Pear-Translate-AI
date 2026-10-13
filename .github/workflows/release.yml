@@ -16,6 +16,8 @@ jobs:
           test "$version" = "${GITHUB_REF_NAME#v}"
           find . -name '*.php' -not -path './.git/*' -print0 | xargs -0 -n1 php -l
           php tests/run.php
+          node --check assets/admin.js
+          node --check assets/frontend.js
       - name: Crear ZIP
         run: |
           mkdir -p build/creative-pear-translate-ai

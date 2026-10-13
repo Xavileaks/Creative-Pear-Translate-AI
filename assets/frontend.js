@@ -14,6 +14,23 @@
   let captured = 0;
   let scanStatus;
   const eligible = text => text.length <= 3500 && /\p{L}/u.test(text) && !/^(https?:\/\/|www\.|[^\s@]+@[^\s@]+\.[^\s@]+$)/i.test(text);
+  function localizeLink(element) {
+    if (!config.language || config.scan || !element.matches('a[href]') || element.closest(excluded)) return;
+    const raw = element.getAttribute('href');
+    if (!raw || raw.startsWith('#')) return;
+    let url;
+    try { url = new URL(raw, location.href); } catch { return; }
+    const home = new URL(config.home);
+    const base = home.pathname.replace(/\/$/, '');
+    if (url.origin !== home.origin || url.username || url.password || !url.pathname.startsWith(`${base}/`)) return;
+    if ([...url.searchParams.keys()].some(key => !['cptai_lang', 'page', 'paged', 's'].includes(key))) return;
+    let path = url.pathname.slice(base.length + 1);
+    if (config.languages.includes(path.split('/')[0])) path = path.split('/').slice(1).join('/');
+    if (/(^|\/)(wp-admin|wp-json|wp-login\.php|wp-cron\.php)(\/|$)/i.test(path) || /\.(pdf|zip|jpg|jpeg|png|gif|webp|svg|mp4|mp3|css|js|xml|json)$/i.test(path)) return;
+    url.pathname = `${base}/${config.language}/${path}`;
+    url.searchParams.delete('cptai_lang');
+    if (url.href !== raw) element.setAttribute('href', url.href);
+  }
   function visit(node, attribute) {
     if (attribute === 'value' && !node.matches('input[type="submit"],input[type="button"],input[type="reset"]')) return;
     const owner = attribute ? node : node.parentElement;
@@ -40,6 +57,7 @@
     if (root.nodeType === Node.ELEMENT_NODE && root.closest(excluded)) return;
     const elements = root.nodeType === Node.ELEMENT_NODE ? [root, ...root.querySelectorAll('*')] : [...root.querySelectorAll('*')];
     for (const element of elements) {
+      localizeLink(element);
       for (const attribute of attributes) if (element.hasAttribute(attribute)) visit(element, attribute);
       if (element.matches('input[type="submit"],input[type="button"],input[type="reset"]')) visit(element, 'value');
     }
@@ -95,11 +113,14 @@
     for (const record of records) {
       if (record.type === 'childList') for (const node of record.addedNodes) walk(node);
       else if (record.type === 'characterData') visit(record.target);
-      else if (record.type === 'attributes') visit(record.target, record.attributeName);
+      else if (record.type === 'attributes') {
+        if (record.attributeName === 'href') localizeLink(record.target);
+        else visit(record.target, record.attributeName);
+      }
     }
     if (config.scan && pending.size && !sending && !paused) {
       clearTimeout(timer);
       timer = setTimeout(flush, 400);
     }
-  }).observe(document.documentElement, {subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: [...attributes, 'value']});
+  }).observe(document.documentElement, {subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: [...attributes, 'value', 'href']});
 })();

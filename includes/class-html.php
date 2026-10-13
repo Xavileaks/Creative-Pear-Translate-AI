@@ -85,17 +85,22 @@ final class CPTAI_HTML {
                 $link->setAttribute( 'href', CPTAI_Frontend::link( $link->getAttribute( 'href' ), $target ) );
             }
         }
-        // Query-based language variants in v1 are for visitors, not an SEO URL migration.
+        // Keep translated variants out of indexing until multilingual SEO is configured.
         $xpath = new DOMXPath( $this->document );
-        foreach ( $xpath->query( '//meta[@name="robots"]' ) as $meta ) {
-            $meta->parentNode->removeChild( $meta );
+        if ( $target !== CPTAI_Settings::get()['source'] ) {
+            foreach ( $xpath->query( '//meta[@name="robots"]' ) as $meta ) {
+                $meta->parentNode->removeChild( $meta );
+            }
+            $head = $this->document->getElementsByTagName( 'head' )->item( 0 );
+            if ( $head ) {
+                $meta = $this->document->createElement( 'meta' );
+                $meta->setAttribute( 'name', 'robots' );
+                $meta->setAttribute( 'content', 'noindex,follow' );
+                $head->appendChild( $meta );
+            }
         }
-        $head = $this->document->getElementsByTagName( 'head' )->item( 0 );
-        if ( $head ) {
-            $meta = $this->document->createElement( 'meta' );
-            $meta->setAttribute( 'name', 'robots' );
-            $meta->setAttribute( 'content', 'noindex,follow' );
-            $head->appendChild( $meta );
+        foreach ( $xpath->query( '//link[@rel="canonical"]/@href | //meta[@property="og:url"]/@content' ) as $attribute ) {
+            $attribute->ownerElement->setAttribute( $attribute->name, CPTAI_Routing::url( $attribute->nodeValue, $target ) );
         }
         return strtr( $this->document->saveHTML(), $this->raw );
     }
