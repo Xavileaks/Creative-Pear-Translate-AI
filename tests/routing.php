@@ -54,6 +54,27 @@ foreach ( array( 'es', 'fr', 'en' ) as $language ) {
 }
 $source = cptai_resolve( get_permalink( $child ) );
 cptai_route_assert( ! isset( $source['cptai_lang'] ), 'unprefixed original routing preserved' );
+// Reproduce an update/cache rebuild that leaves native rules but loses the plugin
+// prefixes, even though the old routing migration is already marked complete.
+$stored_rules = get_option( 'rewrite_rules' );
+$native_rules = array_filter( $stored_rules, static fn( $query ) => ! str_contains( $query, 'cptai_lang=' ) );
+update_option( 'rewrite_rules', $native_rules );
+update_option( 'cptai_routing_version', '1' );
+foreach ( array( 'es', 'en', 'fr' ) as $language ) {
+    $root = cptai_resolve( home_url( '/' . $language . '/' ) );
+    $query = new WP_Query( $root );
+    cptai_route_assert( ! isset( $root['error'] ) && ( $root['cptai_lang'] ?? '' ) === $language, 'missing stored root rule recovers: ' . $language );
+    cptai_route_assert( ! $query->is_404() && (int) get_option( 'page_on_front' ) === $query->get_queried_object_id(), 'missing stored rule loads actual homepage: ' . $language );
+    $nested = cptai_resolve( CPTAI_Routing::url( get_permalink( $child ), $language ) );
+    $query = new WP_Query( $nested );
+    cptai_route_assert( $child === $query->get_queried_object_id(), 'missing stored nested rule recovers: ' . $language );
+    $post_vars = cptai_resolve( CPTAI_Routing::url( get_permalink( $post ), $language ) );
+    $query = new WP_Query( $post_vars );
+    cptai_route_assert( $post === $query->get_queried_object_id(), 'missing stored post rule recovers: ' . $language );
+}
+$_SERVER['REQUEST_URI'] = '/';
+cptai_route_assert( get_option( 'rewrite_rules' ) === $native_rules, 'runtime recovery does not write rules on every visit' );
+update_option( 'rewrite_rules', $stored_rules );
 $_SERVER['REQUEST_URI'] = '/es/cptai-routing-parent/child/';
 cptai_route_assert( str_contains( CPTAI_Routing::canonical( get_permalink( $child ) ), '/es/' ), 'canonical redirect keeps prefix' );
 $removed = CPTAI_Settings::get();
@@ -63,6 +84,23 @@ $rules = get_option( 'rewrite_rules' );
 cptai_route_assert( ! isset( $rules['^fr/?$'] ), 'saving languages flushes removed routes' );
 $removed['targets'] = array( 'es', 'fr' );
 CPTAI_Settings::save( $removed );
+$front_mode = get_option( 'show_on_front' );
+update_option( 'show_on_front', 'posts' );
+$native_rules = array_filter( get_option( 'rewrite_rules' ), static fn( $query ) => ! str_contains( $query, 'cptai_lang=' ) );
+update_option( 'rewrite_rules', $native_rules );
+foreach ( array( 'es', 'en' ) as $language ) {
+    $root = cptai_resolve( home_url( '/' . $language . '/' ) );
+    $query = new WP_Query( $root );
+    cptai_route_assert( $query->is_home() && ! $query->is_404() && ( $root['cptai_lang'] ?? '' ) === $language, 'posts homepage recovers missing rules: ' . $language );
+}
+update_option( 'show_on_front', $front_mode );
+CPTAI_Routing::deactivate();
+$_SERVER['REQUEST_URI'] = '/es/';
+cptai_route_assert( ! isset( get_option( 'rewrite_rules' )['^es/?$'] ), 'deactivation removes stored and runtime routes' );
+CPTAI_Routing::activate();
+$_SERVER['REQUEST_URI'] = '/';
+cptai_route_assert( isset( get_option( 'rewrite_rules' )['^es/?$'] ), 'activation registers and stores language routes' );
+cptai_route_assert( '2' === get_option( 'cptai_routing_version' ), 'activation marks current migration complete' );
 // Delete only the disposable fixtures created by this test.
 wp_delete_post( $child, true ); wp_delete_post( $parent, true ); wp_delete_post( $post, true );
 echo 'PASS: ' . $checks . " native routing checks.\n";

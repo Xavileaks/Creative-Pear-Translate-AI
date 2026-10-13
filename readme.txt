@@ -3,7 +3,7 @@ Contributors: xavileaks
 Tags: translation, multilingual, openai, claude
 Requires at least: 6.4
 Requires PHP: 8.1
-Stable tag: 1.1.0
+Stable tag: 1.1.1
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -28,6 +28,9 @@ Condiciones: https://www.anthropic.com/legal/commercial-terms
 Privacidad: https://www.anthropic.com/legal/privacy
 
 == Changelog ==
+= 1.1.1 =
+* Corrección de 404 en /es/, /en/ y otras carpetas cuando faltan las reglas guardadas de idioma.
+* Registro de rutas al activar y regeneración de reglas al actualizar, sin vaciar la caché en cada visita.
 = 1.1.0 =
 * Panel rediseñado con 12UI en gris, blanco y azul. Menú CPT AI.
 * Original y traducción en dos columnas iguales de escritorio, una en tablet/móvil.

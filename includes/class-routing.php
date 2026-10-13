@@ -2,18 +2,40 @@
 defined( 'ABSPATH' ) || exit;
 
 final class CPTAI_Routing {
+    private const VERSION = '2';
+
     public static function boot(): void {
         add_filter( 'query_vars', static function ( $vars ) { $vars[] = 'cptai_lang'; return $vars; } );
         add_filter( 'rewrite_rules_array', array( self::class, 'rules' ), 90 );
+        add_filter( 'option_rewrite_rules', array( self::class, 'runtime_rules' ), PHP_INT_MAX );
         add_filter( 'redirect_canonical', array( self::class, 'canonical' ), 20 );
         add_action( 'template_redirect', array( self::class, 'legacy_redirect' ), -1 );
         add_action( 'update_option_page_on_front', array( self::class, 'flush' ), 10, 0 );
         add_action( 'update_option_show_on_front', array( self::class, 'flush' ), 10, 0 );
         add_action( 'init', static function () {
-            if ( get_option( 'cptai_routing_version' ) !== '1' ) {
+            if ( get_option( 'cptai_routing_version' ) !== self::VERSION ) {
                 self::flush();
             }
         }, 99 );
+    }
+
+    public static function activate(): void {
+        CPTAI_Store::install();
+        // Activation happens after plugins_loaded, so explicitly register the
+        // rule generator before rebuilding WordPress's stored rules.
+        add_filter( 'rewrite_rules_array', array( self::class, 'rules' ), 90 );
+        self::flush();
+    }
+
+    public static function runtime_rules( $rules ) {
+        // A migration flag cannot guarantee that stored rules still contain our
+        // routes: cache restores or other plugins can rebuild them later. Supply
+        // the language variants when WordPress reads rules for a language URL.
+        // Leave missing/empty rules alone so core regenerates its native rules.
+        if ( ! is_array( $rules ) || ! $rules || ! self::language() ) {
+            return $rules;
+        }
+        return self::rules( $rules );
     }
 
     public static function languages(): array {
@@ -44,11 +66,12 @@ final class CPTAI_Routing {
 
     public static function flush(): void {
         flush_rewrite_rules( false );
-        update_option( 'cptai_routing_version', '1', false );
+        update_option( 'cptai_routing_version', self::VERSION, false );
     }
 
     public static function deactivate(): void {
         remove_filter( 'rewrite_rules_array', array( self::class, 'rules' ), 90 );
+        remove_filter( 'option_rewrite_rules', array( self::class, 'runtime_rules' ), PHP_INT_MAX );
         delete_option( 'cptai_routing_version' );
         flush_rewrite_rules( false );
     }

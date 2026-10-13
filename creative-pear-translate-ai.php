@@ -3,7 +3,7 @@
  * Plugin Name: Creative Pear Translate AI
  * Plugin URI: https://github.com/Xavileaks/Creative-Pear-Translate-AI
  * Description: Traduce páginas públicas con tu propia API de OpenAI o Claude y conserva las traducciones en WordPress.
- * Version: 1.1.0
+ * Version: 1.1.1
  * Requires at least: 6.4
  * Requires PHP: 8.1
  * Author: Creative Pear
@@ -11,12 +11,12 @@
  * Text Domain: creative-pear-translate-ai
  */
 defined( 'ABSPATH' ) || exit;
-define( 'CPTAI_VERSION', '1.1.0' );
+define( 'CPTAI_VERSION', '1.1.1' );
 define( 'CPTAI_FILE', __FILE__ );
 foreach ( array( 'settings', 'store', 'provider', 'html', 'routing', 'frontend', 'admin' ) as $cptai_class ) {
     require_once __DIR__ . '/includes/class-' . $cptai_class . '.php';
 }
-register_activation_hook( __FILE__, array( 'CPTAI_Store', 'install' ) );
+register_activation_hook( __FILE__, array( 'CPTAI_Routing', 'activate' ) );
 register_deactivation_hook( __FILE__, array( 'CPTAI_Routing', 'deactivate' ) );
 add_action( 'plugins_loaded', static function () {
     if ( get_option( 'cptai_db_version' ) !== CPTAI_VERSION ) {

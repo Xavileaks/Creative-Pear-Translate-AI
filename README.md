@@ -62,4 +62,6 @@ El ZIP TranslatePress 3.3.8 facilitado por el usuario se revisó como referencia
 
 ## Publicación
 
-Las etiquetas `v*` validan PHP y JavaScript, ejecutan las pruebas y generan `creative-pear-translate-ai.zip` como archivo instalable de GitHub Releases. Instala ese archivo, no el ZIP automático del código fuente. Versión actual: **1.1.0**. La actualización conserva las traducciones y claves de la versión 1.0.0.
+Las etiquetas `v*` validan PHP y JavaScript, ejecutan las pruebas y generan `creative-pear-translate-ai.zip` como archivo instalable de GitHub Releases. Instala ese archivo, no el ZIP automático del código fuente. Versión actual: **1.1.1**. La actualización conserva las traducciones y claves anteriores.
+
+La versión 1.1.1 corrige rutas de idioma que devolvían 404 al faltar sus reglas guardadas. Registra las reglas en la activación, las regenera una vez al actualizar y proporciona las rutas durante la resolución de una URL de idioma aunque otro proceso haya eliminado las reglas del plugin. No regenera ni escribe reglas en cada visita. Después de actualizar, elimina los 404 guardados en la caché del sitio/CDN. Si persiste un error, guarda una vez Ajustes → Enlaces permanentes y verifica que las peticiones lleguen a WordPress. La indexación multilingüe sigue pendiente; esta corrección de rutas no habilita el SEO de las variantes traducidas.
