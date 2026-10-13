@@ -17,12 +17,12 @@
     if (!error) toastTimer = setTimeout(() => { toastBox.hidden = true; }, 4500);
   }
   document.getElementById('cptai-toast-close').addEventListener('click', () => { toastBox.hidden = true; });
-  async function request(action, values = {}) {
+  async function request(action, values = {}, signal) {
     const body = values instanceof FormData ? new FormData() : new URLSearchParams(values);
     if (values instanceof FormData) for (const [key, value] of values) body.append(key, value);
     body.set('action', `cptai_${action}`);
     body.set('nonce', config.nonce);
-    const response = await fetch(config.ajax, {method: 'POST', credentials: 'same-origin', body});
+    const response = await fetch(config.ajax, {method: 'POST', credentials: 'same-origin', body, signal});
     let result;
     try { result = await response.json(); }
     catch { throw new Error('La respuesta no es válida. Tu edición se conserva; recarga para renovar la sesión si el problema continúa.'); }
@@ -30,18 +30,32 @@
     return result.data;
   }
   const snapshot = data => JSON.stringify([...data].sort((a, b) => a[0].localeCompare(b[0]) || String(a[1]).localeCompare(String(b[1]))));
-  const rows = [...document.querySelectorAll('.cptai-string-form')].map(form => {
+  const rows = new Map();
+  let rowRevision = 0;
+  const dictionaryResults = document.getElementById('cptai-dictionary-results');
+  const filterForm = document.querySelector('.cptai-filters');
+  const filterStatus = document.getElementById('cptai-filter-status');
+  const draftStatus = document.getElementById('cptai-draft-status');
+  const dirtyRows = () => [...rows.values()].filter(row => row.field.value !== row.baseline);
+  function updateDraftStatus() {
+    const count = dirtyRows().length;
+    draftStatus.hidden = !count;
+    draftStatus.textContent = `${count} ${count === 1 ? 'edición sin guardar' : 'ediciones sin guardar'}. Se conservan al buscar, ordenar o cambiar de página; guarda antes de salir.`;
+  }
+  function bindRow(form) {
     const field = form.querySelector('textarea');
     const button = form.querySelector('[type="submit"]');
     const card = form.closest('.cptai-string-row');
     const badge = form.querySelector('.cptai-row-status');
-    const state = {form, field, button, card, badge, baseline: field.value, saving: false};
+    const id = form.elements.id.value;
+    const state = {form, field, button, card, badge, baseline: field.value, saving: false, suggesting: false, changedAt: 0};
     state.update = () => {
       const dirty = field.value !== state.baseline;
       button.disabled = state.saving || !dirty;
       button.textContent = state.saving ? 'Guardando…' : 'Guardar';
       card.classList.toggle('is-dirty', dirty);
       badge.textContent = state.saving ? 'Guardando…' : dirty ? 'Sin guardar' : state.baseline ? 'Guardada' : 'Pendiente';
+      updateDraftStatus();
     };
     field.addEventListener('input', state.update);
     form.addEventListener('submit', async event => {
@@ -55,13 +69,92 @@
       try {
         const result = await request('save_string', body);
         state.baseline = result.text;
+        state.changedAt = ++rowRevision;
         if (field.value === submitted) field.value = result.text;
         toast(result.translated ? 'Traducción guardada en todas sus apariciones.' : 'Se ha restablecido el texto original.');
       } catch (error) { toast(error.message, true); }
       finally { state.saving = false; state.update(); }
     });
+    const aiButton = form.querySelector('.cptai-row');
+    aiButton.disabled = !config.ready;
+    aiButton.addEventListener('click', async () => {
+      if (state.suggesting) return;
+      state.suggesting = true;
+      aiButton.disabled = true;
+      const previous = field.value;
+      try {
+        const result = await request('row', {id});
+        if (field.value !== previous) { toast('Se conserva tu edición: el texto cambió mientras la IA respondía.'); return; }
+        field.value = result.text;
+        state.update();
+        toast('Sugerencia preparada. Revísala y guarda la traducción.');
+      } catch (error) { toast(error.message, true); }
+      finally { state.suggesting = false; aiButton.disabled = !config.ready; }
+    });
+    rows.set(id, state);
     state.update();
     return state;
+  }
+  function bindResults(startedRevision = rowRevision) {
+    for (const form of dictionaryResults.querySelectorAll('.cptai-string-form')) {
+      const cached = rows.get(form.elements.id.value);
+      if (cached && (cached.changedAt > startedRevision || cached.saving || cached.suggesting || cached.field.value !== cached.baseline)) {
+        form.closest('.cptai-string-row').replaceWith(cached.card);
+      } else {
+        bindRow(form);
+      }
+    }
+    updateDraftStatus();
+  }
+  bindResults();
+  let filterTimer;
+  let filterController;
+  let filterRevision = 0;
+  function scheduleFilter(page = 1, delay = 0) {
+    clearTimeout(filterTimer);
+    filterController?.abort();
+    const revision = ++filterRevision;
+    filterTimer = setTimeout(async () => {
+      const controller = new AbortController();
+      filterController = controller;
+      const input = new FormData(filterForm);
+      const startedRevision = rowRevision;
+      input.set('paged', page);
+      dictionaryResults.setAttribute('aria-busy', 'true');
+      filterStatus.textContent = 'Buscando cadenas…';
+      try {
+        const result = await request('dictionary', input, controller.signal);
+        if (revision !== filterRevision) return;
+        dictionaryResults.innerHTML = result.html;
+        bindResults(startedRevision);
+        filterStatus.textContent = `${result.total} ${result.total === 1 ? 'coincidencia' : 'coincidencias'}.`;
+        const url = new URL(window.location.href);
+        for (const key of ['target', 's', 'pending', 'sort', 'paged']) url.searchParams.delete(key);
+        url.searchParams.set('target', result.target);
+        if (result.search) url.searchParams.set('s', result.search);
+        if (result.pending) url.searchParams.set('pending', '1');
+        url.searchParams.set('sort', result.sort);
+        if (result.page > 1) url.searchParams.set('paged', result.page);
+        history.replaceState(null, '', url);
+      } catch (error) {
+        if (revision !== filterRevision || error.name === 'AbortError') return;
+        filterStatus.textContent = 'No se pudo actualizar. Puedes volver a intentarlo; tus ediciones se conservan.';
+        toast(error.message, true);
+      } finally {
+        if (revision === filterRevision) dictionaryResults.removeAttribute('aria-busy');
+      }
+    }, delay);
+  }
+  document.getElementById('cptai-search').addEventListener('input', () => scheduleFilter(1, 250));
+  for (const control of filterForm.querySelectorAll('select, [type="checkbox"]')) {
+    control.addEventListener('change', () => scheduleFilter());
+  }
+  filterForm.addEventListener('submit', event => { event.preventDefault(); scheduleFilter(); });
+  dictionaryResults.addEventListener('click', event => {
+    const link = event.target.closest('.cptai-pagination a');
+    if (!link || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    scheduleFilter(Number(new URL(link.href).searchParams.get('paged')) || 1);
   });
   const settingsForm = document.getElementById('cptai-settings-form');
   for (const link of document.querySelectorAll('#cptai-open-settings, .cptai-settings-link')) {
@@ -131,14 +224,14 @@
       }
       config.ready = Boolean(saved.keys[saved.provider] && saved[`${saved.provider}_model`]);
       document.getElementById('cptai-connection-hint').hidden = config.ready;
-      for (const button of document.querySelectorAll('.cptai-row')) button.disabled = !config.ready;
+      for (const row of rows.values()) row.form.querySelector('.cptai-row').disabled = row.suggesting || !config.ready;
       toast('Ajustes guardados.');
     } catch (error) { toast(error.message, true); }
     finally { settingsSaving = false; settingsUpdate(); }
   });
   settingsUpdate();
   window.addEventListener('beforeunload', event => {
-    if (rows.some(row => row.field.value !== row.baseline) || snapshot(new FormData(settingsForm)) !== settingsBaseline) {
+    if (dirtyRows().length || [...rows.values()].some(row => row.saving || row.suggesting) || snapshot(new FormData(settingsForm)) !== settingsBaseline) {
       event.preventDefault(); event.returnValue = '';
     }
   });
@@ -205,20 +298,4 @@
       document.getElementById('cptai-stop').hidden = true;
     }
   });
-  for (const button of document.querySelectorAll('.cptai-row')) {
-    button.disabled = !config.ready;
-    button.addEventListener('click', async () => {
-      button.disabled = true;
-      const field = document.getElementById(`cptai-string-${button.dataset.id}`);
-      const previous = field.value;
-      try {
-        const result = await request('row', {id: button.dataset.id});
-        if (field.value !== previous) { toast('Se conserva tu edición: el texto cambió mientras la IA respondía.'); return; }
-        field.value = result.text;
-        field.dispatchEvent(new Event('input', {bubbles: true}));
-        toast('Sugerencia preparada. Revísala y guarda la traducción.');
-      } catch (error) { toast(error.message, true); }
-      finally { button.disabled = !config.ready; }
-    });
-  }
 })();

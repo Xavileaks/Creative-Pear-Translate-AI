@@ -21,6 +21,10 @@ Las URLs usan carpetas de idioma: **`/es/`**, **`/en/`**, **`/fr/`**, también p
 5. Busca una cadena, escribe su traducción y pulsa **Guardar**. Se aplica a todas sus apariciones para ese idioma. Para volver al original, vacía la traducción y guarda.
 6. Muestra el selector al pie desde los ajustes o añade `[creative_pear_language_switcher]` en un bloque, shortcode o widget Elementor. También puedes abrir una página en `/es/`, `/en/`, etc.
 
+El buscador actualiza el diccionario por AJAX mientras escribes, con una pausa de 250 ms para agrupar pulsaciones. Busca en el original y en la traducción de todas las cadenas del idioma seleccionado. El selector **Ordenar** permite A–Z/Z–A, vacías/traducidas primero, más/menos caracteres del original o de la traducción, primeras/últimas detectadas y primeras/últimas actualizadas. La longitud cuenta caracteres Unicode, no bytes. El orden se aplica antes de dividir las páginas y se combina con búsqueda y **Solo pendientes**.
+
+Los filtros y la paginación funcionan sin recargar. Las ediciones sin guardar se mantienen en esta pestaña al buscar, ordenar o cambiar de página; vuelven a aparecer al mostrar su fila. Se indica cuántas hay y se avisa al salir. Solo **Guardar** las escribe en WordPress; no se conservan al cerrar la pestaña. Los filtros se reflejan en la URL para poder volver a abrirlos. Sin JavaScript, el botón **Filtrar / actualizar** y los enlaces siguen funcionando con recarga.
+
 ## IA opcional
 
 Introduce una clave de OpenAI o Anthropic en WordPress, guarda y pulsa **Consultar modelos**. Selecciona un modelo con generación de texto y guarda de nuevo. No se usan credenciales de ChatGPT/Claude en el navegador: son las APIs de cada proveedor, con su propia cuenta y facturación.
@@ -54,7 +58,7 @@ La tabla `{prefijo}cptai_strings` guarda original, traducción, idiomas y primer
 
 WordPress 6.4+, PHP 8.1+ con DOM, OpenSSL y mbstring. Para IA, conexiones HTTPS salientes a `api.openai.com` o `api.anthropic.com`.
 
-Pruebas sin servicios externos: `php tests/run.php`. Pruebas en WordPress aislado: `php tests/wordpress.php /ruta/a/wordpress`, `php tests/ajax.php /ruta/a/wordpress` y `php tests/routing.php /ruta/a/wordpress`; el entorno debe ser `local`. `tests/coexistence.php` comprueba identificadores independientes con XLeon instalado en ese entorno. Los fixtures usan respuestas simuladas y no llaman a APIs de IA. Las pruebas y herramientas de desarrollo se excluyen del ZIP.
+Pruebas sin servicios externos: `php tests/run.php`. Pruebas en WordPress aislado: `php tests/wordpress.php /ruta/a/wordpress`, `php tests/ajax.php /ruta/a/wordpress`, `php tests/routing.php /ruta/a/wordpress` y `php tests/dictionary.php /ruta/a/wordpress`; el entorno debe ser `local`. `tests/coexistence.php` comprueba identificadores independientes con XLeon instalado en ese entorno. Los fixtures usan respuestas simuladas y no llaman a APIs de IA. Las pruebas y herramientas de desarrollo se excluyen del ZIP.
 
 Se consultaron las interfaces oficiales: [OpenAI Responses](https://developers.openai.com/api/docs/guides/text) y [Anthropic Messages](https://platform.claude.com/docs/en/api/messages/create).
 
@@ -62,6 +66,6 @@ El ZIP TranslatePress 3.3.8 facilitado por el usuario se revisó como referencia
 
 ## Publicación
 
-Las etiquetas `v*` validan PHP y JavaScript, ejecutan las pruebas y generan `creative-pear-translate-ai.zip` como archivo instalable de GitHub Releases. Instala ese archivo, no el ZIP automático del código fuente. Versión actual: **1.1.1**. La actualización conserva las traducciones y claves anteriores.
+Las etiquetas `v*` validan PHP y JavaScript, ejecutan las pruebas y generan `creative-pear-translate-ai.zip` como archivo instalable de GitHub Releases. Instala ese archivo, no el ZIP automático del código fuente. Versión actual: **1.2.0**. La actualización conserva las traducciones y claves anteriores.
 
 La versión 1.1.1 corrige rutas de idioma que devolvían 404 al faltar sus reglas guardadas. Registra las reglas en la activación, las regenera una vez al actualizar y proporciona las rutas durante la resolución de una URL de idioma aunque otro proceso haya eliminado las reglas del plugin. No regenera ni escribe reglas en cada visita. Después de actualizar, elimina los 404 guardados en la caché del sitio/CDN. Si persiste un error, guarda una vez Ajustes → Enlaces permanentes y verifica que las peticiones lleguen a WordPress. La indexación multilingüe sigue pendiente; esta corrección de rutas no habilita el SEO de las variantes traducidas.

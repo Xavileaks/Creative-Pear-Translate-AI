@@ -16,7 +16,7 @@ final class CPTAI_Admin {
         } );
         add_action( 'admin_post_cptai_settings', array( self::class, 'save_settings' ) );
         add_action( 'admin_post_cptai_edit', array( self::class, 'edit' ) );
-        foreach ( array( 'models', 'prepare', 'batch', 'capture', 'scan_link', 'row', 'save_string', 'save_settings_ajax' ) as $action ) {
+        foreach ( array( 'models', 'prepare', 'batch', 'capture', 'scan_link', 'row', 'save_string', 'save_settings_ajax', 'dictionary' ) as $action ) {
             add_action( 'wp_ajax_cptai_' . $action, array( self::class, $action ) );
         }
     }
@@ -290,22 +290,25 @@ final class CPTAI_Admin {
         exit;
     }
 
-    public static function page(): void {
-        if ( ! current_user_can( 'manage_options' ) ) {
-            return;
-        }
+    private static function dictionary_data( array $input ): array {
         global $wpdb;
         $settings = CPTAI_Settings::get();
         $languages = CPTAI_Settings::languages();
-        $target = sanitize_key( wp_unslash( $_GET['target'] ?? ( $settings['targets'][0] ?? '' ) ) );
+        $target = isset( $input['target'] ) && is_string( $input['target'] ) ? sanitize_key( wp_unslash( $input['target'] ) ) : ( $settings['targets'][0] ?? '' );
         if ( ! in_array( $target, $settings['targets'], true ) ) {
             $target = $settings['targets'][0] ?? '';
         }
-        $search = sanitize_text_field( wp_unslash( $_GET['s'] ?? '' ) );
-        $pending = ! empty( $_GET['pending'] );
-        $page = max( 1, absint( $_GET['paged'] ?? 1 ) );
+        $search = isset( $input['s'] ) && is_string( $input['s'] ) ? sanitize_text_field( wp_unslash( $input['s'] ) ) : '';
+        $pending = ! empty( $input['pending'] );
+        $sort_options = CPTAI_Store::sort_options();
+        $sort = isset( $input['sort'] ) && is_string( $input['sort'] ) ? sanitize_key( wp_unslash( $input['sort'] ) ) : 'newest';
+        if ( ! isset( $sort_options[ $sort ] ) ) {
+            $sort = 'newest';
+        }
+        $order = $sort_options[ $sort ]['sql'];
+        $page = max( 1, isset( $input['paged'] ) && is_scalar( $input['paged'] ) ? absint( $input['paged'] ) : 1 );
         $where = $wpdb->prepare( 'source_lang=%s AND target_lang=%s', $settings['source'], $target );
-        if ( $search ) {
+        if ( '' !== $search ) {
             $like = '%' . $wpdb->esc_like( $search ) . '%';
             $where .= $wpdb->prepare( ' AND (original LIKE %s OR translated LIKE %s)', $like, $like );
         }
@@ -313,7 +316,28 @@ final class CPTAI_Admin {
             $where .= " AND translated=''";
         }
         $total = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . CPTAI_Store::table() . ' WHERE ' . $where );
-        $rows = $wpdb->get_results( 'SELECT * FROM ' . CPTAI_Store::table() . ' WHERE ' . $where . $wpdb->prepare( ' ORDER BY id DESC LIMIT 30 OFFSET %d', ( $page - 1 ) * 30 ) );
+        $page = min( $page, max( 1, (int) ceil( $total / 30 ) ) );
+        $rows = $wpdb->get_results( 'SELECT * FROM ' . CPTAI_Store::table() . ' WHERE ' . $where . ' ORDER BY ' . $order . $wpdb->prepare( ' LIMIT 30 OFFSET %d', ( $page - 1 ) * 30 ) );
+        $ready = '' !== CPTAI_Settings::key( $settings['provider'] ) && '' !== $settings[ $settings['provider'] . '_model' ];
+        $pagination_base = add_query_arg( array( 'page' => 'creative-pear-translate-ai', 'target' => $target, 's' => $search, 'pending' => $pending ? 1 : 0, 'sort' => $sort, 'paged' => '%#%' ), admin_url( 'admin.php' ) );
+        return compact( 'settings', 'languages', 'target', 'search', 'pending', 'sort_options', 'sort', 'page', 'total', 'rows', 'ready', 'pagination_base' );
+    }
+
+    public static function dictionary(): void {
+        self::permission();
+        $data = self::dictionary_data( $_POST );
+        extract( $data, EXTR_SKIP );
+        ob_start();
+        require __DIR__ . '/admin-dictionary.php';
+        $html = ob_get_clean();
+        self::result( array( 'html' => $html, 'total' => $total, 'page' => $page, 'target' => $target, 'sort' => $sort, 'search' => $search, 'pending' => $pending ) );
+    }
+
+    public static function page(): void {
+        if ( ! current_user_can( 'manage_options' ) ) {
+            return;
+        }
+        extract( self::dictionary_data( $_GET ), EXTR_SKIP );
         require __DIR__ . '/admin-page.php';
     }
 }

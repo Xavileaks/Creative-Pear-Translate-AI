@@ -2,6 +2,24 @@
 defined( 'ABSPATH' ) || exit;
 
 final class CPTAI_Store {
+    public static function sort_options(): array {
+        // Only these fixed expressions may enter ORDER BY; request values are keys.
+        return array(
+            'newest' => array( 'label' => 'Últimas detectadas primero', 'sql' => 'id DESC' ),
+            'oldest' => array( 'label' => 'Primeras detectadas primero', 'sql' => 'id ASC' ),
+            'az' => array( 'label' => 'Original: A → Z', 'sql' => 'original ASC, id ASC' ),
+            'za' => array( 'label' => 'Original: Z → A', 'sql' => 'original DESC, id ASC' ),
+            'empty_first' => array( 'label' => 'Vacías primero', 'sql' => "CASE WHEN translated='' THEN 0 ELSE 1 END ASC, original ASC, id ASC" ),
+            'filled_first' => array( 'label' => 'Traducidas primero', 'sql' => "CASE WHEN translated='' THEN 1 ELSE 0 END ASC, original ASC, id ASC" ),
+            'longest' => array( 'label' => 'Original: más caracteres primero', 'sql' => 'CHAR_LENGTH(original) DESC, original ASC, id ASC' ),
+            'shortest' => array( 'label' => 'Original: menos caracteres primero', 'sql' => 'CHAR_LENGTH(original) ASC, original ASC, id ASC' ),
+            'translation_longest' => array( 'label' => 'Traducción: más caracteres primero', 'sql' => 'CHAR_LENGTH(translated) DESC, original ASC, id ASC' ),
+            'translation_shortest' => array( 'label' => 'Traducción: menos caracteres primero', 'sql' => 'CHAR_LENGTH(translated) ASC, original ASC, id ASC' ),
+            'updated_newest' => array( 'label' => 'Últimas actualizadas primero', 'sql' => 'updated_at DESC, id DESC' ),
+            'updated_oldest' => array( 'label' => 'Menos recientes en actualizarse', 'sql' => 'updated_at ASC, id ASC' ),
+        );
+    }
+
     public static function table(): string {
         global $wpdb;
         return $wpdb->prefix . 'cptai_strings';

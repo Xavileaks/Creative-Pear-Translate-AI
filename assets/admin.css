@@ -57,6 +57,10 @@
 #cptai-app .cptai-dictionary h2 { font-size: 16px; margin-bottom: 14px; }
 #cptai-app .cptai-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 #cptai-app .cptai-filter-language { display: flex; align-items: center; gap: 10px; }
+#cptai-app .cptai-filter-sort { display: flex; align-items: center; gap: 10px; max-width: 100%; min-width: 0; }
+#cptai-app .cptai-filter-sort select { min-width: 0; max-width: 100%; }
+#cptai-app #cptai-filter-status:empty { display: none; }
+#cptai-app #cptai-dictionary-results[aria-busy='true'] { opacity: .65; }
 #cptai-app .cptai-search-wrap { position: relative; min-width: 200px; width: 280px; max-width: 100%; }
 #cptai-app .cptai-search-wrap img { position: absolute; width: 16px; height: 16px; left: 11px; top: 11px; pointer-events: none; }
 #cptai-app .cptai-search-wrap input { width: 100%; padding-left: 36px; }
@@ -122,6 +126,8 @@
   #cptai-app .cptai-panel { padding: 12px; }
   #cptai-app .cptai-capture-label { flex-basis: 100%; }
   #cptai-app .cptai-url, #cptai-app .cptai-search-wrap { width: 100%; flex-basis: 100%; min-width: 0; }
+  #cptai-app .cptai-filter-sort { width: 100%; }
+  #cptai-app .cptai-filter-sort select { flex: 1; }
   #cptai-app .cptai-button { min-height: 42px; }
   #cptai-app .cptai-row-actions .cptai-button { min-height: 38px; }
   #cptai-app .cptai-row-status { width: 100%; margin-left: 0; }
