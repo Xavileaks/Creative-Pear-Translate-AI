@@ -8,6 +8,13 @@ Creative Pear Translate AI - Plan de ChatGPT (experimental)
    Autoriza el uso del plan. La disponibilidad depende de OpenAI y tu cuenta.
 4. Manten esta ventana abierta. En WordPress, elige ChatGPT - Mi plan,
    consulta los modelos, elige uno y guarda los ajustes.
+
+Desde 1.5.1 el asistente mantiene la sesion en memoria y reintenta automaticamente
+si WordPress esta actualizandose o hay un corte temporal de conexion. Una entrega
+se reintenta con la misma respuesta, sin volver a traducir. Si el trabajo caduca,
+WordPress permite solicitarlo de nuevo. No se reintentan credenciales revocadas.
+Reemplazar el script no cambia un asistente ya abierto: la nueva version se carga
+al reiniciarlo. Mantenerlo abierto evita iniciar sesion por cada actualizacion.
 5. Usa Sugerir con IA o Traducir pendientes con IA.
 6. Pulsa Ctrl+C para revocar la sesion y cerrar el asistente.
 

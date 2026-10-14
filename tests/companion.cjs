@@ -2,7 +2,7 @@
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const {Readable} = require('node:stream');
-const {AUTH_WAIT_MS, jsonRequest, parseModels, validateConnection, endpointFor, validateIdentity, validateGrant, validateJob, translationPayload, parseStream, errorCode, callbackListener, authorize, refresh} = require('../companion/cptai-companion.cjs');
+const {AUTH_WAIT_MS, jsonRequest, parseModels, validateConnection, endpointFor, validateIdentity, validateGrant, validateJob, translationPayload, parseStream, errorCode, callbackListener, authorize, refresh, retryableSiteError, resilientSiteRequest, SafeError} = require('../companion/cptai-companion.cjs');
 let checks = 0;
 function check(fn) { fn(); checks++; }
 const connection = {version:1, endpoint:'https://example.org/wp-json/cptai/v1/plan/', secret:'a'.repeat(64), installation:'12345678-1234-1234-1234-123456789abc'};
@@ -120,5 +120,36 @@ check(() => assert.equal(errorCode(401, {error:{message:'private-secret'}}), 'au
     check(() => assert.deepEqual(parseModels(largeCatalog), ['model-z']));
     await assert.rejects(() => jsonRequest('https://auth.openai.com/api/accounts/oauth/token')); checks++;
   } finally { global.fetch = originalFetch; }
+  // Simulate update downtime and delivery retries; no real sleep or provider calls.
+  for (const status of [404,408,429,500,502,503,504]) check(() => assert.equal(retryableSiteError(Object.assign(new SafeError('model'),{status})), true));
+  for (const status of [400,401,403,409,410,413,422]) check(() => assert.equal(retryableSiteError(Object.assign(new SafeError('network'),{status})), false));
+  check(() => assert.equal(retryableSiteError(new SafeError('auth')), false));
+  check(() => assert.equal(retryableSiteError(new Error('arbitrary error')), false));
+  let requests = 0; const delays = [], logs = [], deliveries = [];
+  const delivery = {id:job.id,translations:['Enviar %s']};
+  const recovered = await resilientSiteRequest(connection, 'complete', delivery, {
+    wait:async ms => delays.push(ms), report:line => logs.push(line),
+    request:async (site,operation,body) => {
+      deliveries.push({site,operation,body});
+      if (++requests <= 6) throw Object.assign(new SafeError(requests % 2 ? 'network' : 'format'), {status:requests % 2 ? 503 : 200});
+      return {accepted:true};
+    }
+  });
+  check(() => assert.deepEqual(recovered,{accepted:true}));
+  check(() => assert.deepEqual(delays,[2000,4000,8000,16000,30000,30000]));
+  check(() => assert.equal(logs.length,2));
+  check(() => assert.ok(deliveries.every(item => item.operation==='complete' && item.body===delivery && item.site===connection)));
+  check(() => assert.ok(!JSON.stringify(logs).includes(connection.secret)));
+  for (const status of [401,403,409]) {
+    let attempts=0;
+    await assert.rejects(()=>resilientSiteRequest(connection,'poll',{}, {request:async()=>{attempts++;throw Object.assign(new SafeError('auth'),{status});},wait:async()=>{throw new Error('Must not retry');}}),error=>error.status===status); checks++;
+    check(()=>assert.equal(attempts,1));
+  }
+  let stopping=false;
+  await assert.rejects(()=>resilientSiteRequest(connection,'poll',{}, {request:async()=>{throw new SafeError('network');},wait:async()=>{stopping=true;},stopped:()=>stopping,report:()=>{}}),error=>error.code==='stopped'); checks++;
+  global.fetch = async()=>new Response('<html>Updating WordPress</html>',{status:503,headers:{'content-type':'text/html'}});
+  try {
+    await assert.rejects(()=>jsonRequest('https://example.org/wp-json/cptai/v1/plan/poll'),error=>error.status===503 && retryableSiteError(error)); checks++;
+  } finally { global.fetch=originalFetch; }
   console.log(`PASS: ${checks} companion checks; no real OpenAI requests or credentials.`);
 })().catch(error => { console.error(error); process.exitCode = 1; });

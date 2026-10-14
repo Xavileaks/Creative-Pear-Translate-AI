@@ -53,23 +53,24 @@ async function jsonRequest(url, options = {}, timeout = 20000) {
   let response;
   try { response = await fetch(url, {...options, redirect: 'error', signal: AbortSignal.timeout(timeout)}); }
   catch { throw new SafeError('network', 'No se pudo contactar con el servicio.'); }
+  const failure = (code, message) => Object.assign(new SafeError(code, message), {status:response.status});
   const declared = Number(response.headers.get('content-length') || 0);
-  if (declared > limit) throw new SafeError('format', `La respuesta de ${stage} supera el tamaño permitido.`);
+  if (declared > limit) throw failure('format', `La respuesta de ${stage} supera el tamaño permitido.`);
   let body;
   try {
     const chunks = []; let size = 0;
     for await (const chunk of response.body || []) {
       size += chunk.length;
-      if (size > limit) throw new SafeError('format', `La respuesta de ${stage} supera el tamaño permitido.`);
+      if (size > limit) throw failure('format', `La respuesta de ${stage} supera el tamaño permitido.`);
       chunks.push(chunk);
     }
     const text = Buffer.concat(chunks).toString('utf8');
     body = text ? JSON.parse(text) : {};
   } catch (error) {
     if (error instanceof SafeError) throw error;
-    throw new SafeError('format', `La respuesta de ${stage} no es JSON (HTTP ${response.status}; ${response.headers.get('content-type') || 'sin tipo de contenido'}).`);
+    throw failure('format', `La respuesta de ${stage} no es JSON (HTTP ${response.status}; ${response.headers.get('content-type') || 'sin tipo de contenido'}).`);
   }
-  if (!response.ok) throw new SafeError(errorCode(response.status, body), 'El servicio rechazó la petición.');
+  if (!response.ok) throw failure(errorCode(response.status, body), 'El servicio rechazó la petición.');
   return body;
 }
 
@@ -258,6 +259,31 @@ async function siteRequest(connection, operation, body) {
   return jsonRequest(endpointFor(connection, operation), {method:'POST', headers:{'Content-Type':'application/json', 'X-CPTAI-Companion':connection.secret}, body:JSON.stringify(body)});
 }
 
+function retryableSiteError(error) {
+  if (!(error instanceof SafeError)) return false;
+  // Updates can briefly remove the REST route or serve a maintenance HTML page.
+  // Revoked credentials and expired jobs must never become endless retries.
+  if ([400,401,403,409,410,413,422].includes(error.status)) return false;
+  if (error.status === 404 || error.status === 408 || error.status === 429 || error.status >= 500) return true;
+  return error.code === 'network' || (error.code === 'format' && error.status === 200);
+}
+
+async function resilientSiteRequest(connection, operation, body, {request = siteRequest, wait = sleep, stopped = () => false, report = console.log} = {}) {
+  let attempts = 0;
+  while (!stopped()) {
+    try {
+      const result = await request(connection, operation, body);
+      if (attempts) report('Conexión con WordPress restablecida.');
+      return result;
+    } catch (error) {
+      if (!retryableSiteError(error)) throw error;
+      if (!attempts) report('WordPress no responde temporalmente. Mantengo la sesión y reintento automáticamente.');
+      await wait(Math.min(30000, 2000 * 2 ** Math.min(attempts++, 4)));
+    }
+  }
+  throw new SafeError('stopped', 'El asistente se está cerrando.');
+}
+
 async function chooseProfile(connection) {
   const directory = path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), '.config'), 'CreativePearTranslateAI');
   fs.mkdirSync(directory, {recursive:true, mode:0o700});
@@ -333,18 +359,19 @@ async function main() {
       siteRequest(connection, 'poll', {account:session.email, models, heartbeat:true}).catch(() => {});
     }, 10000);
     let pendingResult = null;
+    const requestSite = (operation, body) => resilientSiteRequest(connection, operation, body, {stopped:() => stopped});
     while (!stopped) {
       await refresh(session);
       if (pendingResult) {
         // Delivery retries never repeat inference or spend plan usage again.
-        let delivered = false;
-        for (let attempt = 0; attempt < 3 && !delivered; attempt++) {
-          try { await siteRequest(connection, 'complete', pendingResult); delivered = true; }
-          catch (error) { if (error.code === 'auth' || attempt === 2) throw error; await sleep(1500); }
+        try { await requestSite('complete', pendingResult); }
+        catch (error) {
+          if (error.status !== 409) throw error;
+          console.log('El trabajo caducó antes de poder entregarlo. WordPress permitirá volver a solicitarlo; no se repite la inferencia automáticamente.');
         }
         pendingResult = null;
       }
-      const result = await siteRequest(connection, 'poll', {account:session.email, models});
+      const result = await requestSite('poll', {account:session.email, models});
       if (result.job) {
         console.log('Procesando un lote de traducción solicitado desde WordPress…');
         try { pendingResult = {id:result.job.id, translations:await translate(session, result.job, models)}; }
@@ -363,7 +390,7 @@ async function main() {
   }
 }
 
-module.exports = {AUTH_WAIT_MS, jsonRequest, parseModels, validateConnection, endpointFor, validateIdentity, validateGrant, validateJob, translationPayload, parseStream, errorCode, callbackListener, authorize, refresh, SafeError};
+module.exports = {AUTH_WAIT_MS, jsonRequest, parseModels, validateConnection, endpointFor, validateIdentity, validateGrant, validateJob, translationPayload, parseStream, errorCode, callbackListener, authorize, refresh, retryableSiteError, resilientSiteRequest, SafeError};
 if (require.main === module) main().catch(error => {
   const message = error instanceof SafeError ? error.message : 'El asistente no pudo continuar.';
   console.error('CPT AI: ' + message);
