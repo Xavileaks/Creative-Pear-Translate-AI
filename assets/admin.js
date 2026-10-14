@@ -11,6 +11,14 @@
   let allRunning = false;
   let allStopped = false;
   let allJob = null;
+  let siteRunning = false;
+  let siteStopped = false;
+  let siteJob = null;
+  let readingSingle = false;
+  const siteButton = document.getElementById('cptai-read-site');
+  const siteStop = document.getElementById('cptai-site-stop');
+  const siteStatus = document.getElementById('cptai-site-status');
+  const siteProgress = document.getElementById('cptai-site-progress');
   const allButton = document.getElementById('cptai-all');
   const allStop = document.getElementById('cptai-all-stop');
   const allStatus = document.getElementById('cptai-all-status');
@@ -33,7 +41,7 @@
     let result;
     try { result = await response.json(); }
     catch { throw new Error('La respuesta no es válida. Tu edición se conserva; recarga para renovar la sesión si el problema continúa.'); }
-    if (!result.success) throw new Error(result.data?.message || 'No se pudo completar la petición. Tu edición se conserva.');
+    if (!result.success) throw Object.assign(new Error(result.data?.message || 'No se pudo completar la petición. Tu edición se conserva.'), {code:result.data?.code});
     if (resolvePlan && result.data?.plan_ticket) {
       const ticket = result.data.plan_ticket;
       const deadline = Date.now() + 155000;
@@ -201,6 +209,77 @@
     } catch (error) { addStatus.textContent = error.message; toast(error.message, true); }
     finally { adding = false; button.disabled = false; button.textContent = 'Añadir cadena'; }
   });
+  const imagePanel = document.getElementById('cptai-image-panel');
+  const imageForm = document.getElementById('cptai-image-form');
+  const imageStatus = document.getElementById('cptai-image-status');
+  const imageList = document.getElementById('cptai-image-list');
+  const imageCancel = document.getElementById('cptai-image-cancel');
+  let imageEdit = null;
+  let imageSaving = false;
+  let imageRevision = 0;
+  function resetImage() {
+    imageEdit = null; imageForm.reset(); imageForm.elements.original.readOnly = false;
+    imageForm.querySelector('[type="submit"]').textContent = 'Añadir imagen'; imageCancel.hidden = true;
+  }
+  imageCancel.addEventListener('click', resetImage);
+  async function loadImages() {
+    const revision = ++imageRevision;
+    const target = document.getElementById('cptai-filter-target').value;
+    imageStatus.textContent = 'Cargando imágenes…';
+    try {
+      const result = await request('image_list', {target});
+      if (revision !== imageRevision) return;
+      imageList.replaceChildren();
+      imageStatus.textContent = `${result.rows.length} sustituciones de imagen · ${config.languages[target] || target}.`;
+      for (const row of result.rows) {
+        const card = document.createElement('div'); card.className = 'cptai-image-item';
+        const urls = document.createElement('div'); urls.className = 'cptai-image-urls';
+        for (const [label,value] of [['Original',row.original],['Nueva imagen',row.replacement || 'Original restablecida']]) {
+          const p = document.createElement('p'); const strong = document.createElement('strong'); strong.textContent = label;
+          p.append(strong,document.createTextNode(value)); urls.append(p);
+        }
+        const actions = document.createElement('div'); actions.className = 'cptai-manual-controls';
+        const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'cptai-button'; edit.textContent = 'Editar';
+        edit.addEventListener('click', () => {
+          if (imageSaving) return;
+          imageEdit = {original:row.original, expected:row.replacement, target};
+          imageForm.elements.original.value = row.original; imageForm.elements.original.readOnly = true;
+          imageForm.elements.replacement.value = row.replacement;
+          imageForm.querySelector('[type="submit"]').textContent = 'Guardar imagen'; imageCancel.hidden = false;
+          imageForm.elements.replacement.focus();
+        });
+        const restore = document.createElement('button'); restore.type = 'button'; restore.className = 'cptai-button'; restore.textContent = 'Restablecer original'; restore.disabled = !row.replacement;
+        restore.addEventListener('click', async () => {
+          if (imageSaving) return;
+          imageSaving = true; restore.disabled = true;
+          try {
+            await request('image_save',{target,original:row.original,replacement:'',expected:row.replacement});
+            if (imageEdit?.original === row.original) resetImage();
+            toast('Imagen original restablecida.'); await loadImages();
+          } catch (error) { toast(error.message,true); restore.disabled = false; }
+          finally { imageSaving = false; }
+        });
+        actions.append(edit,restore); card.append(urls,actions); imageList.append(card);
+      }
+    } catch (error) { if (revision === imageRevision) { imageStatus.textContent = error.message; toast(error.message,true); } }
+  }
+  imagePanel.addEventListener('toggle', () => { if (imagePanel.open) loadImages(); });
+  document.getElementById('cptai-filter-target').addEventListener('change', () => {
+    ++imageRevision; resetImage(); imageList.replaceChildren(); if (imagePanel.open) loadImages();
+  });
+  imageForm.addEventListener('submit', async event => {
+    event.preventDefault(); if (imageSaving) return;
+    const submitted = new FormData(imageForm);
+    submitted.set('target', imageEdit?.target || document.getElementById('cptai-filter-target').value);
+    if (imageEdit) submitted.set('expected',imageEdit.expected);
+    const button = imageForm.querySelector('[type="submit"]'); imageSaving = true; button.disabled = true;
+    try {
+      await request('image_save',submitted);
+      if (imageForm.elements.original.value === submitted.get('original') && imageForm.elements.replacement.value === submitted.get('replacement')) resetImage();
+      toast('Imagen guardada para todas sus apariciones en este idioma.'); await loadImages();
+    } catch (error) { imageStatus.textContent = error.message; toast(error.message,true); }
+    finally { imageSaving = false; button.disabled = false; }
+  });
   const settingsForm = document.getElementById('cptai-settings-form');
   for (const link of document.querySelectorAll('#cptai-open-settings, .cptai-settings-link')) {
     link.addEventListener('click', () => { document.getElementById('cptai-settings').open = true; });
@@ -210,14 +289,14 @@
   const settingsButton = settingsForm.querySelector('[type="submit"]');
   function settingsUpdate() {
     const dirty = snapshot(new FormData(settingsForm)) !== settingsBaseline;
-    settingsButton.disabled = allRunning || running || settingsSaving || !dirty;
+    settingsButton.disabled = siteRunning || readingSingle || allRunning || running || settingsSaving || !dirty;
     settingsButton.textContent = settingsSaving ? 'Guardando…' : 'Guardar ajustes';
   }
   settingsForm.addEventListener('input', settingsUpdate);
   settingsForm.addEventListener('change', settingsUpdate);
   settingsForm.addEventListener('submit', async event => {
     event.preventDefault();
-    if (settingsSaving || allRunning || running) return;
+    if (settingsSaving || siteRunning || readingSingle || allRunning || running) return;
     const submitted = new FormData(settingsForm);
     settingsSaving = true;
     settingsUpdate();
@@ -266,6 +345,8 @@
       }
       if (config.source !== saved.source || JSON.stringify(config.targets) !== JSON.stringify(saved.targets)) {
         job = null;
+        siteJob = null;
+        siteButton.textContent = 'Leer todo el sitio';
         document.getElementById('cptai-ai').disabled = true;
         message('Idiomas guardados. Actualiza el diccionario para cargar las cadenas correspondientes.');
       }
@@ -283,8 +364,9 @@
     config.ready = Boolean(ready);
     document.getElementById('cptai-connection-hint').hidden = config.ready;
     for (const row of rows.values()) row.form.querySelector('.cptai-row').disabled = row.suggesting || allRunning || !config.ready;
-    allButton.disabled = allRunning || running || !config.ready;
-    if (!running) document.getElementById('cptai-ai').disabled = allRunning || !job?.pending || !config.ready;
+    allButton.disabled = siteRunning || readingSingle || allRunning || running || !config.ready;
+    siteButton.disabled = siteRunning || readingSingle || running || allRunning;
+    if (!running) document.getElementById('cptai-ai').disabled = siteRunning || readingSingle || allRunning || !job?.pending || !config.ready;
   }
   const planState = document.getElementById('cptai-plan-status');
   const planDisconnect = document.getElementById('cptai-plan-disconnect');
@@ -320,7 +402,7 @@
   checkPlan();
   setInterval(checkPlan, 6000);
   window.addEventListener('beforeunload', event => {
-    if (running || allRunning || adding || addDirty() || dirtyRows().length || [...rows.values()].some(row => row.saving || row.suggesting) || snapshot(new FormData(settingsForm)) !== settingsBaseline) {
+    if (siteRunning || readingSingle || running || allRunning || adding || addDirty() || imageSaving || [...imageForm.querySelectorAll('input')].some(field => field.value.trim()) || dirtyRows().length || [...rows.values()].some(row => row.saving || row.suggesting) || snapshot(new FormData(settingsForm)) !== settingsBaseline) {
       event.preventDefault(); event.returnValue = '';
     }
   });
@@ -336,13 +418,13 @@
   let customUrl = document.getElementById('cptai-url').value;
   const contentSelect = document.getElementById('cptai-content-select');
   const contentStatus = document.getElementById('cptai-content-status');
-  function resetPageJob() { if (running || allRunning) return; job = null; updateReady(config.ready); }
+  function resetPageJob() { if (siteRunning || readingSingle || running || allRunning) return; job = null; updateReady(config.ready); }
   contentSelect.addEventListener('change', () => { document.getElementById('cptai-url').value = contentSelect.value; resetPageJob(); });
   document.getElementById('cptai-url').addEventListener('input', resetPageJob);
-  document.getElementById('cptai-target').addEventListener('change', resetPageJob);
+  document.getElementById('cptai-target').addEventListener('change', () => { resetPageJob(); siteJob = null; siteButton.textContent = 'Leer todo el sitio'; });
   for (const tab of document.querySelectorAll('[data-cptai-content]')) {
     tab.addEventListener('click', async () => {
-      if (running || allRunning) return;
+      if (siteRunning || readingSingle || running || allRunning) return;
       const revision = ++contentRevision;
       if (contentType === 'custom') customUrl = document.getElementById('cptai-url').value;
       contentType = tab.dataset.cptaiContent;
@@ -367,10 +449,10 @@
         const result = await request('content_list', {type:contentType});
         if (revision !== contentRevision) return;
         contentSelect.replaceChildren(...result.items.map(item => { const option = document.createElement('option'); option.value = item.url; option.textContent = item.title; return option; }));
-        contentSelect.disabled = !result.items.length;
+        contentSelect.disabled = siteRunning || readingSingle || running || allRunning || !result.items.length;
         document.getElementById('cptai-url').value = contentSelect.value;
-        document.getElementById('cptai-read').disabled = !result.items.length;
-        document.getElementById('cptai-scan').disabled = !result.items.length;
+        document.getElementById('cptai-read').disabled = siteRunning || readingSingle || running || allRunning || !result.items.length;
+        document.getElementById('cptai-scan').disabled = siteRunning || readingSingle || running || allRunning || !result.items.length;
         contentStatus.textContent = result.items.length ? `${result.items.length} disponibles. Solo se muestra contenido público sin contraseña.` : 'No hay contenido publicado disponible en esta categoría.';
       } catch (error) { if (revision === contentRevision) { contentStatus.textContent = error.message; toast(error.message, true); } }
     });
@@ -388,7 +470,10 @@
     });
   }
   document.getElementById('cptai-read').addEventListener('click', async () => {
-    document.getElementById('cptai-read').disabled = true;
+    if (siteRunning || readingSingle || running || allRunning) return;
+    readingSingle = true;
+    captureBusy(true);
+    updateReady(config.ready);
     document.getElementById('cptai-ai').disabled = true;
     job = null;
     message('Leyendo las cadenas de la página…');
@@ -401,7 +486,7 @@
       status.append(' ', preview);
       toast('Cadenas capturadas.');
     } catch (error) { message(error.message); toast(error.message, true); }
-    finally { document.getElementById('cptai-read').disabled = false; }
+    finally { readingSingle = false; captureBusy(false); updateReady(config.ready); settingsUpdate(); }
   });
   document.getElementById('cptai-scan').addEventListener('click', async () => {
     const tab = window.open('about:blank', '_blank');
@@ -416,7 +501,7 @@
   });
   document.getElementById('cptai-stop').addEventListener('click', () => { stopped = true; message('Se detendrá cuando termine el lote actual.'); });
   document.getElementById('cptai-ai').addEventListener('click', async () => {
-    if (!job || running || allRunning) return;
+    if (!job || siteRunning || readingSingle || running || allRunning) return;
     running = true; stopped = false;
     captureBusy(true);
     updateReady(config.ready);
@@ -449,7 +534,7 @@
   });
   document.getElementById('cptai-filter-target').addEventListener('change', () => { allJob = null; allButton.textContent = 'Traducir todo'; });
   allButton.addEventListener('click', async () => {
-    if (allRunning || running || !config.ready) return;
+    if (siteRunning || readingSingle || allRunning || running || !config.ready) return;
     const target = document.getElementById('cptai-filter-target').value;
     allRunning = true; allStopped = false;
     updateReady(config.ready);
@@ -500,6 +585,59 @@
       allButton.textContent = allJob ? 'Continuar traducción' : 'Traducir todo';
       settingsUpdate();
       updateReady(config.ready);
+      scheduleFilter();
+    }
+  });
+  function showSiteResult(result) {
+    siteProgress.max = Math.max(1, result.total);
+    siteProgress.value = result.done;
+    siteStatus.textContent = `${result.done} de ${result.total} URLs procesadas · ${result.added} cadenas nuevas · ${result.failed} errores${result.skipped ? ` · ${result.skipped} omitidas` : ''}.`;
+    const failures = document.getElementById('cptai-site-failures');
+    failures.replaceChildren(...result.failures.map(item => {
+      const li = document.createElement('li');
+      const link = document.createElement('a');
+      link.href = item.url; link.textContent = item.url; link.target = '_blank'; link.rel = 'noopener';
+      li.append(link, document.createTextNode(` — ${item.message}`));
+      return li;
+    }));
+    if (result.failed > result.failures.length) {
+      const li = document.createElement('li'); li.textContent = `Y ${result.failed - result.failures.length} errores más. Puedes volver a leer el sitio para reintentarlos.`; failures.append(li);
+    }
+    failures.hidden = !result.failed;
+  }
+  siteStop.addEventListener('click', () => { siteStopped = true; siteStop.disabled = true; siteStatus.textContent = 'Se detendrá después de guardar las cadenas de la página actual.'; });
+  siteButton.addEventListener('click', async () => {
+    if (siteRunning || readingSingle || running || allRunning) return;
+    const target = document.getElementById('cptai-target').value;
+    if (!target) { toast('Selecciona y guarda primero un idioma de destino.', true); return; }
+    siteRunning = true; siteStopped = false;
+    siteButton.textContent = 'Leyendo todo el sitio…';
+    captureBusy(true); updateReady(config.ready); settingsUpdate();
+    document.getElementById('cptai-site-reading').hidden = false;
+    siteStop.hidden = false; siteStop.disabled = false;
+    siteStatus.textContent = 'Preparando las páginas, entradas y productos publicados…';
+    let complete = false;
+    try {
+      if (!siteJob || siteJob.target !== target) siteJob = await request('scan_prepare', {target});
+      showSiteResult(siteJob);
+      complete = siteJob.complete;
+      while (!siteStopped && !complete) {
+        siteJob = await request('scan_batch', {job:siteJob.job, offset:siteJob.done});
+        showSiteResult(siteJob);
+        complete = siteJob.complete;
+      }
+      siteStatus.append(complete ? ' Lectura terminada. Las cadenas están en el diccionario.' : ' Lectura detenida. Lo guardado se conserva.');
+      toast(complete ? `Lectura terminada: ${siteJob.added} cadenas nuevas${siteJob.failed ? `, ${siteJob.failed} URLs con error` : ''}.` : 'Lectura detenida. Puedes continuar cuando quieras.', Boolean(siteJob.failed));
+      if (complete) siteJob = null;
+    } catch (error) {
+      siteStatus.textContent = `Lectura pausada: ${error.message} Las cadenas ya guardadas se conservan.`;
+      toast(error.message, true);
+      if (['changed','job','offset'].includes(error.code)) siteJob = null;
+    } finally {
+      siteRunning = false;
+      siteStop.hidden = true;
+      siteButton.textContent = siteJob ? 'Continuar lectura' : 'Leer todo el sitio';
+      captureBusy(false); updateReady(config.ready); settingsUpdate();
       scheduleFilter();
     }
   });

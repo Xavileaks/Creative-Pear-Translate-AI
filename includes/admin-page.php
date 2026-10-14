@@ -16,12 +16,12 @@ $plan_status = CPTAI_Plan::status();
             <h2 id="cptai-capture-heading">Capturar cadenas de una página</h2>
             <p class="cptai-lead">Lee el HTML de WordPress o abre la captura en navegador para detectar también los textos de JavaScript y AJAX.</p>
             <div class="cptai-panel">
-                <div class="cptai-content-tabs" role="group" aria-label="Tipo de contenido para capturar">
+                <div class="cptai-capture-toolbar"><div class="cptai-content-tabs" role="group" aria-label="Tipo de contenido para capturar">
                     <button type="button" class="cptai-button" data-cptai-content="page" aria-pressed="false">Páginas</button>
                     <button type="button" class="cptai-button" data-cptai-content="post" aria-pressed="false">Entradas</button>
                     <button type="button" class="cptai-button" data-cptai-content="product" aria-pressed="false">Productos</button>
                     <button type="button" class="cptai-button" data-cptai-content="custom" aria-pressed="true">URL personalizada</button>
-                </div>
+                </div><button type="button" class="cptai-button cptai-button-primary" id="cptai-read-site">Leer todo el sitio</button></div>
                 <div class="cptai-capture-row" id="cptai-content-choice" hidden>
                     <label for="cptai-content-select" class="cptai-capture-label" id="cptai-content-label">Contenido publicado</label>
                     <select id="cptai-content-select" class="cptai-url"></select>
@@ -38,6 +38,11 @@ $plan_status = CPTAI_Plan::status();
                     <button type="button" class="cptai-button" id="cptai-scan">Captura en navegador</button>
                     <button type="button" class="cptai-button" id="cptai-ai" disabled>Traducir pendientes con IA</button>
                     <button type="button" class="cptai-button" id="cptai-stop" hidden>Detener tras este lote</button>
+                </div>
+                <div class="cptai-site-reading" id="cptai-site-reading" hidden>
+                    <div class="cptai-site-reading-heading"><p id="cptai-site-status" role="status" aria-live="polite"></p><button type="button" class="cptai-button" id="cptai-site-stop" hidden>Detener después de esta página</button></div>
+                    <progress id="cptai-site-progress" value="0" max="1" aria-label="Progreso de lectura de todo el sitio"></progress>
+                    <ul id="cptai-site-failures" class="cptai-hint" hidden></ul>
                 </div>
                 <p class="cptai-hint">No se capturan campos personales ni páginas de carrito, checkout o cuenta. Puedes excluir una zona con <code>translate="no"</code> o <code>data-cptai-ignore</code>.</p>
                 <p class="cptai-hint" id="cptai-connection-hint" <?php echo $ready ? 'hidden' : ''; ?>>La edición manual está disponible. Configura una conexión y un modelo en <a href="#cptai-settings" class="cptai-settings-link">Ajustes</a> para usar IA.</p>
@@ -78,6 +83,20 @@ $plan_status = CPTAI_Plan::status();
                     <p class="cptai-hint">Sin traducción queda pendiente. Recarga las páginas abiertas para aplicar la nueva cadena.</p>
                     <p id="cptai-add-status" role="status" aria-live="polite"></p>
                 </form>
+            </details>
+            <details class="cptai-manual" id="cptai-image-panel">
+                <summary>Añadir imagen</summary>
+                <p class="cptai-hint">Sustituye una imagen en el idioma seleccionado arriba. Conserva sus clases, estilos, tamaño y enlace; el original sigue usando su imagen.</p>
+                <form id="cptai-image-form">
+                    <div class="cptai-manual-grid">
+                        <div><label for="cptai-image-original">URL de la imagen original</label><input type="url" id="cptai-image-original" name="original" required placeholder="https://tuweb.com/wp-content/uploads/imagen-original.jpg"></div>
+                        <div><label for="cptai-image-replacement">URL de la imagen nueva</label><input type="url" id="cptai-image-replacement" name="replacement" required placeholder="https://tuweb.com/wp-content/uploads/imagen-traducida.jpg"></div>
+                    </div>
+                    <div class="cptai-manual-controls"><button type="submit" class="cptai-button cptai-button-primary">Añadir imagen</button><button type="button" class="cptai-button" id="cptai-image-cancel" hidden>Cancelar edición</button></div>
+                </form>
+                <p class="cptai-hint">Copia la URL de archivo de la imagen nueva desde Medios. Las variantes responsive y la carga diferida usarán esa imagen. Recarga las páginas abiertas para ver el cambio.</p>
+                <p id="cptai-image-status" role="status" aria-live="polite"></p>
+                <div id="cptai-image-list"></div>
             </details>
             <p id="cptai-filter-status" class="cptai-hint" role="status" aria-live="polite"></p>
             <p id="cptai-draft-status" class="cptai-hint" role="status" hidden></p>

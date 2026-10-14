@@ -42,6 +42,7 @@ final class CPTAI_Store {
             PRIMARY KEY  (id),
             UNIQUE KEY language_string (source_lang,target_lang,source_hash)
         ) $charset;" );
+        CPTAI_Images::install();
         update_option( 'cptai_db_version', CPTAI_VERSION, false );
     }
 

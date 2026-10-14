@@ -46,6 +46,13 @@ final class CPTAI_Frontend {
         }
         wp_enqueue_script( 'cptai-calendar', plugins_url( 'assets/calendar.js', CPTAI_FILE ), array(), CPTAI_VERSION, true );
         wp_enqueue_script( 'cptai-frontend', plugins_url( 'assets/frontend.js', CPTAI_FILE ), array( 'cptai-calendar' ), CPTAI_VERSION, true );
+        if ( ! $scan && self::target() ) {
+            $images = CPTAI_Images::map( CPTAI_Settings::get()['source'], $target );
+            if ( $images ) {
+                wp_enqueue_script( 'cptai-images', plugins_url( 'assets/images.js', CPTAI_FILE ), array(), CPTAI_VERSION, true );
+                wp_add_inline_script( 'cptai-images', 'window.CPTAIImages=' . wp_json_encode( (object) $images, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT ) . ';', 'before' );
+            }
+        }
         $config = array( 'dictionary' => (object) ( self::target() ? CPTAI_Store::dictionary( CPTAI_Settings::get()['source'], $target ) : array() ), 'language' => $target, 'languages' => CPTAI_Routing::languages(), 'home' => home_url( '/' ) );
         $source = CPTAI_Settings::get()['source'];
         $data = CPTAI_Calendar::data();
@@ -107,7 +114,8 @@ final class CPTAI_Frontend {
         try {
             $document = new CPTAI_HTML( $html );
             $dictionary = self::target() ? CPTAI_Store::find( $document->strings(), CPTAI_Settings::get()['source'], $target ) : array();
-            return $document->render( $dictionary, $target );
+            $rendered = $document->render( $dictionary, $target );
+            return self::target() ? CPTAI_Images::render( $rendered, CPTAI_Images::map( CPTAI_Settings::get()['source'], $target ) ) : $rendered;
         } catch ( Throwable $e ) {
             return $html;
         }

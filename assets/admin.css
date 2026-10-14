@@ -74,6 +74,12 @@
 #cptai-app .cptai-translate-all p { flex-basis: 100%; margin: 0; }
 #cptai-app .cptai-content-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
 #cptai-app .cptai-content-tabs [aria-pressed='true'] { background: var(--cptai-blue); border-color: var(--cptai-blue); color: #fff; }
+#cptai-app .cptai-capture-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+#cptai-app .cptai-capture-toolbar .cptai-content-tabs { margin-bottom: 0; }
+#cptai-app .cptai-site-reading { margin: 14px 0; padding: 12px; background: var(--cptai-soft); border: 1px solid var(--cptai-line); border-radius: 4px; }
+#cptai-app .cptai-site-reading-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+#cptai-app .cptai-site-reading progress { width: 100%; height: 8px; margin-top: 10px; accent-color: var(--cptai-blue); }
+#cptai-app .cptai-site-reading ul { margin-bottom: 0; padding-left: 18px; }
 #cptai-app .cptai-search-wrap { position: relative; min-width: 200px; width: 280px; max-width: 100%; }
 #cptai-app .cptai-search-wrap img { position: absolute; width: 16px; height: 16px; left: 11px; top: 11px; pointer-events: none; }
 #cptai-app .cptai-search-wrap input { width: 100%; padding-left: 36px; }
@@ -130,7 +136,13 @@
 #cptai-app #cptai-toast-close img { width: 14px; height: 14px; }
 #cptai-app #cptai-toast-close:hover, #cptai-app #cptai-toast-close:focus-visible { background: #ffffff26; outline: 1px solid #ffffffaa; }
 @keyframes cptai-toast-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+#cptai-app .cptai-manual-grid input[type='url'] { width: 100%; min-width: 0; }
+#cptai-app .cptai-image-item { border: 1px solid var(--cptai-line); border-radius: 5px; padding: 12px; margin-top: 12px; }
+#cptai-app .cptai-image-urls { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 16px; overflow-wrap: anywhere; font-size: 12px; }
+#cptai-app .cptai-image-urls p { margin: 0 0 8px; }
+#cptai-app .cptai-image-urls strong { display: block; margin-bottom: 4px; }
 @media (max-width:1024px) {
+  #cptai-app .cptai-image-urls { grid-template-columns: minmax(0,1fr); }
   #cptai-app .cptai-string-row, #cptai-app .cptai-settings-grid, #cptai-app .cptai-manual-grid { grid-template-columns: minmax(0,1fr); }
   #cptai-app .cptai-column-headings { display: none; }
   #cptai-app .cptai-field-label { display: block; }

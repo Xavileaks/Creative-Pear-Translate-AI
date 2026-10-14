@@ -16,7 +16,7 @@ final class CPTAI_Admin {
         } );
         add_action( 'admin_post_cptai_settings', array( self::class, 'save_settings' ) );
         add_action( 'admin_post_cptai_edit', array( self::class, 'edit' ) );
-        foreach ( array( 'models', 'content_list', 'prepare', 'prepare_all', 'batch', 'capture', 'scan_link', 'row', 'save_string', 'save_settings_ajax', 'dictionary', 'add_string', 'plan_status', 'plan_disconnect', 'plan_result' ) as $action ) {
+        foreach ( array( 'models', 'content_list', 'prepare', 'scan_prepare', 'scan_batch', 'prepare_all', 'batch', 'capture', 'scan_link', 'row', 'save_string', 'save_settings_ajax', 'dictionary', 'add_string', 'image_list', 'image_save', 'plan_status', 'plan_disconnect', 'plan_result' ) as $action ) {
             add_action( 'wp_ajax_cptai_' . $action, array( self::class, $action ) );
         }
     }
@@ -34,7 +34,7 @@ final class CPTAI_Admin {
 
     private static function result( $result ): void {
         if ( is_wp_error( $result ) ) {
-            wp_send_json_error( array( 'message' => $result->get_error_message() ), 400 );
+            wp_send_json_error( array( 'message' => $result->get_error_message(), 'code' => $result->get_error_code() ), 400 );
         }
         wp_send_json_success( $result );
     }
@@ -48,7 +48,10 @@ final class CPTAI_Admin {
     }
 
     private static function url() {
-        $url = esc_url_raw( wp_unslash( $_POST['url'] ?? '' ) );
+        return self::validate_capture_url( esc_url_raw( wp_unslash( $_POST['url'] ?? '' ) ) );
+    }
+
+    public static function validate_capture_url( string $url ) {
         $url = CPTAI_Routing::source_url( $url );
         $parts = wp_parse_url( $url );
         parse_str( $parts['query'] ?? '', $query );
@@ -152,33 +155,27 @@ final class CPTAI_Admin {
         if ( is_wp_error( $url ) ) {
             self::result( $url );
         }
-        if ( ! CPTAI_HTML::preserves_markup() && ! class_exists( 'DOMDocument' ) ) {
-            self::result( new WP_Error( 'dom', 'Activa la extensión PHP DOM en tu servidor.' ) );
-        }
-        // No cookies or authorization forwarded. No redirects to another origin.
-        $response = wp_safe_remote_get( $url, array( 'timeout' => 25, 'redirection' => 0, 'limit_response_size' => 2097153 ) );
-        if ( is_wp_error( $response ) || 200 !== wp_remote_retrieve_response_code( $response ) ) {
-            self::result( new WP_Error( 'fetch', 'No se pudo leer la página pública. Usa su URL final sin redirecciones o abre la captura en navegador.' ) );
-        }
-        $html = wp_remote_retrieve_body( $response );
-        if ( strlen( $html ) > 2097152 || stripos( $html, '<html' ) === false ) {
-            self::result( new WP_Error( 'html', 'La página no es HTML o supera los 2 MB.' ) );
-        }
-        $strings = ( new CPTAI_HTML( $html ) )->strings();
-        if ( count( $strings ) > 2000 ) {
-            self::result( new WP_Error( 'size', 'La página tiene demasiadas cadenas. Usa la captura en navegador.' ) );
-        }
         $settings = CPTAI_Settings::get();
-        try {
-            $added = CPTAI_Store::capture( $strings, $settings['source'], $target, $url );
-        } catch ( Throwable $e ) {
-            self::result( new WP_Error( 'db', 'No se pudieron guardar las cadenas.' ) );
-        }
+        $read = CPTAI_Scanner::read( $url, $settings['source'], $target );
+        if ( is_wp_error( $read ) ) { self::result( $read ); }
+        $strings = $read['strings']; $added = $read['added']; $url = $read['url'];
         $known = CPTAI_Store::find( $strings, $settings['source'], $target );
         $pending = array_values( array_filter( $strings, static fn( $s ) => ! array_key_exists( $s, $known ) ) );
         $job = wp_generate_uuid4();
         set_transient( 'cptai_job_' . $job, array( 'user' => get_current_user_id(), 'source' => $settings['source'], 'target' => $target, 'url' => $url, 'strings' => $pending, 'offset' => 0 ), HOUR_IN_SECONDS );
         self::result( array( 'job' => $job, 'total' => count( $strings ), 'pending' => count( $pending ), 'added' => $added, 'preview' => CPTAI_Routing::url( $url, $target ) ) );
+    }
+
+    public static function scan_prepare(): void {
+        self::permission();
+        self::result( CPTAI_Scanner::prepare( self::target() ) );
+    }
+
+    public static function scan_batch(): void {
+        self::permission();
+        $id = isset( $_POST['job'] ) && is_string( $_POST['job'] ) ? sanitize_text_field( wp_unslash( $_POST['job'] ) ) : '';
+        $offset = isset( $_POST['offset'] ) && is_scalar( $_POST['offset'] ) ? absint( $_POST['offset'] ) : -1;
+        self::result( CPTAI_Scanner::step( $id, $offset ) );
     }
 
     private static function skip_ids(): array {
@@ -461,6 +458,24 @@ final class CPTAI_Admin {
         require __DIR__ . '/admin-dictionary.php';
         $html = ob_get_clean();
         self::result( array( 'html' => $html, 'total' => $total, 'page' => $page, 'target' => $target, 'sort' => $sort, 'search' => $search, 'pending' => $pending ) );
+    }
+
+    public static function image_list(): void {
+        self::permission();
+        $target = self::target();
+        self::result( array( 'rows' => CPTAI_Images::rows( CPTAI_Settings::get()['source'], $target ), 'target' => $target ) );
+    }
+
+    public static function image_save(): void {
+        self::permission();
+        $target = self::target();
+        $values = array();
+        foreach ( array( 'original', 'replacement', 'expected' ) as $key ) {
+            $values[ $key ] = isset( $_POST[ $key ] ) && is_string( $_POST[ $key ] ) ? trim( wp_unslash( $_POST[ $key ] ) ) : '';
+        }
+        $result = CPTAI_Images::save( $values['original'], $values['replacement'], $target, isset( $_POST['expected'] ) ? $values['expected'] : null );
+        if ( is_wp_error( $result ) ) { self::result( $result ); }
+        self::result( array( 'target' => $target ) );
     }
 
     public static function page(): void {

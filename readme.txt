@@ -3,7 +3,7 @@ Contributors: xavileaks
 Tags: translation, multilingual, openai, claude
 Requires at least: 6.4
 Requires PHP: 8.1
-Stable tag: 1.5.1
+Stable tag: 1.6.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -36,6 +36,12 @@ Condiciones: https://www.anthropic.com/legal/commercial-terms
 Privacidad: https://www.anthropic.com/legal/privacy
 
 == Changelog ==
+
+= 1.6.0 =
+* Leer todo el sitio recorre portada, páginas, entradas y productos públicos, una URL por petición, con progreso y detener/continuar.
+* Conserva las traducciones existentes y continúa si una URL falla, sin usar IA.
+* Añadir imagen permite sustituir imágenes por idioma usando URLs de Medios, editar y restablecer la original por AJAX.
+* Conserva clases y estilos; actualiza imágenes responsive, lazy loading y fondos CSS en el navegador.
 
 = 1.5.1 =
 * El asistente conserva la sesión y reintenta con pausa progresiva ante cortes de conexión o mantenimiento de WordPress.

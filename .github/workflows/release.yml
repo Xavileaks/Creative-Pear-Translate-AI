@@ -25,6 +25,7 @@ jobs:
           node --check assets/calendar.js
           node --check assets/admin.js
           node --check assets/frontend.js
+          node --check assets/images.js
       - name: Crear ZIP
         run: |
           mkdir -p build/creative-pear-translate-ai
