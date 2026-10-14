@@ -100,7 +100,7 @@ cptai_route_assert( ! isset( get_option( 'rewrite_rules' )['^es/?$'] ), 'deactiv
 CPTAI_Routing::activate();
 $_SERVER['REQUEST_URI'] = '/';
 cptai_route_assert( isset( get_option( 'rewrite_rules' )['^es/?$'] ), 'activation registers and stores language routes' );
-cptai_route_assert( '2' === get_option( 'cptai_routing_version' ), 'activation marks current migration complete' );
+cptai_route_assert( '3' === get_option( 'cptai_routing_version' ), 'activation marks current migration complete' );
 // Delete only the disposable fixtures created by this test.
 wp_delete_post( $child, true ); wp_delete_post( $parent, true ); wp_delete_post( $post, true );
 echo 'PASS: ' . $checks . " native routing checks.\n";

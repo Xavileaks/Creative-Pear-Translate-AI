@@ -2,7 +2,7 @@
 defined( 'ABSPATH' ) || exit;
 
 final class CPTAI_Routing {
-    private const VERSION = '2';
+    private const VERSION = '3';
 
     public static function boot(): void {
         add_filter( 'query_vars', static function ( $vars ) { $vars[] = 'cptai_lang'; return $vars; } );
@@ -107,6 +107,9 @@ final class CPTAI_Routing {
             return $url;
         }
         $parts = wp_parse_url( self::source_url( $url ) );
+        if ( $language === CPTAI_Settings::get()['source'] ) {
+            return self::assemble( $parts );
+        }
         $home_path = rtrim( wp_parse_url( home_url( '/' ), PHP_URL_PATH ) ?? '', '/' );
         $relative = substr( $parts['path'] ?? '/', strlen( $home_path ) );
         $parts['path'] = $home_path . '/' . $language . '/' . ltrim( $relative, '/' );
@@ -128,6 +131,11 @@ final class CPTAI_Routing {
     }
 
     public static function legacy_redirect(): void {
+        if ( ! is_admin() && ! wp_doing_ajax() && self::language() === CPTAI_Settings::get()['source']
+            && ! CPTAI_Frontend::scan_target() && 'GET' === ( $_SERVER['REQUEST_METHOD'] ?? 'GET' ) ) {
+            wp_safe_redirect( self::source_url( CPTAI_Frontend::current_url() ), 301 );
+            exit;
+        }
         if ( ! is_admin() && ! wp_doing_ajax() && isset( $_GET['cptai_lang'] ) && is_string( $_GET['cptai_lang'] )
             && in_array( $_GET['cptai_lang'], self::languages(), true ) && ! CPTAI_Frontend::scan_target()
             && 'GET' === ( $_SERVER['REQUEST_METHOD'] ?? 'GET' ) ) {

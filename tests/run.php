@@ -93,7 +93,7 @@ response( array( 'data' => array( array( 'id' => 'model-b' ), array( 'id' => 'mo
 check( array( 'model-a', 'model-b' ) === CPTAI_Provider::models( 'claude' ), 'account model list parsed' );
 
 $_SERVER['REQUEST_URI'] = '/';
-$html = '<!DOCTYPE html><html lang="es"><head><title>Comprar</title><meta name="description" content="A &amp; B"><script>const a="Comprar";</script><style>.Comprar{}</style></head><body><button> Comprar </button><a href="/shop/">Comprar</a><input type="submit" value="Comprar"><input type="email" value="private@example.org"><input placeholder="Tu nombre"><p>A &amp; B</p><p translate="no">No traducir</p><div class="notranslate">Excluir</div><div id="wpadminbar">Administrador</div><textarea>Privado</textarea><svg><text>Vector</text></svg><nav class="cptai-switcher"><a href="/">Español</a></nav><script type="application/json">{"name":"Comprar"}</script></body></html>';
+$html = '<!DOCTYPE html><html lang="es"><head><title>Comprar</title><meta name="robots" content="index,follow"><meta name="description" content="A &amp; B"><script>const a="Comprar";</script><style>.Comprar{}</style></head><body><button> Comprar </button><a href="/shop/">Comprar</a><input type="submit" value="Comprar"><input type="email" value="private@example.org"><input placeholder="Tu nombre"><p>A &amp; B</p><p translate="no">No traducir</p><div class="notranslate">Excluir</div><div id="wpadminbar">Administrador</div><textarea>Privado</textarea><svg><text>Vector</text></svg><nav class="cptai-switcher"><a href="/">Español</a></nav><script type="application/json">{"name":"Comprar"}</script></body></html>';
 $doc = new CPTAI_HTML( $html );
 $strings = $doc->strings();
 check( 1 === count( array_keys( $strings, 'Comprar', true ) ), 'duplicate button appears once' );
@@ -102,6 +102,7 @@ foreach ( array( 'No traducir', 'Excluir', 'Administrador', 'Privado', 'Vector',
     check( ! in_array( $excluded, $strings, true ), 'excluded text: ' . $excluded );
 }
 $rendered = $doc->render( array( 'Comprar' => 'Buy', 'A & B' => 'C & D', 'Tu nombre' => 'Your name' ), 'en' );
+if ( CPTAI_HTML::preserves_markup() ) {
 check( 4 === substr_count( $rendered, 'Buy' ), 'same translation applied to title and every button/link' );
 check( str_contains( $rendered, 'const a="Comprar";' ), 'script content untouched' );
 $unicode = '<!doctype html><html><head><style>.test::after{content:"Botón dinámico"}</style></head><body><script data-test="a>b">const name="Botón dinámico & café"; const json={"x":"á"};</script></body></html>';
@@ -113,20 +114,27 @@ check( str_contains( $rendered, 'C &amp; D' ), 'plain text ampersands serialized
 check( str_contains( $rendered, 'content="C &amp; D"' ), 'ampersands in attributes preserved' );
 check( str_contains( $rendered, 'href="https://example.org/en/shop/"' ), 'internal navigation retains language folder' );
 check( str_contains( $rendered, '<a href="/">Espa' ), 'switcher links preserved' );
+$broken = '<!doctype html><html lang="es" dir="ltr"><body><section><h2><div>Comprar<div></h2></section><section><svg viewBox="0 0 5 5"><linearGradient id="g"></linearGradient></svg><p>Comprar</p></section></body></html>';
+$fixed = ( new CPTAI_HTML( $broken ) )->render( array( 'Comprar' => 'Buy' ), 'en' );
+check( str_replace( array( 'lang="es"', 'Comprar' ), array( 'lang="en"', 'Buy' ), $broken ) === $fixed, 'malformed Elementor heading does not absorb subsequent sections or mutate SVG' );
+check( $broken === ( new CPTAI_HTML( $broken ) )->render( array(), 'es' ), 'rendering source preserves exact HTML bytes' );
+} else {
+    check( $html === $rendered, 'older WordPress fallback preserves original markup for browser translation' );
+}
 foreach ( array( '/?add-to-cart=1', '/wp-admin/', 'https://other.org/page', '/file.pdf', '#fragment', 'mailto:hello@example.org', 'https://example.org:444/' ) as $url ) {
     check( $url === CPTAI_Frontend::link( $url, 'en' ), 'unsafe or external navigation untouched: ' . $url );
 }
 check( ! CPTAI_Frontend::local_url( 'https://user:pass@example.org/' ), 'URL credentials rejected' );
-check( 'https://example.org/es/shop/?paged=2#items' === CPTAI_Routing::url( 'https://example.org/en/shop/?paged=2#items', 'es' ), 'changing language replaces prefix and preserves query and fragment' );
+check( 'https://example.org/shop/?paged=2#items' === CPTAI_Routing::url( 'https://example.org/en/shop/?paged=2#items', 'es' ), 'return to source removes prefix and preserves query and fragment' );
 check( 'https://example.org/shop/' === CPTAI_Routing::source_url( 'https://example.org/en/shop/?cptai_lang=en' ), 'canonical source URL removes language prefix and legacy parameter' );
-check( 'https://example.org/es/' === CPTAI_Routing::url( 'https://example.org/', 'es' ), 'source language also has a folder' );
+check( 'https://example.org/' === CPTAI_Routing::url( 'https://example.org/', 'es' ), 'source language uses the original URL' );
 check( '' === CPTAI_Routing::language( 'https://example.org/unknown/shop/' ), 'unknown prefix ignored' );
 $rules = CPTAI_Routing::rules( array( '^shop/([^/]+)/?$' => 'index.php?product=$matches[1]', '^wp-json/(.*)' => 'index.php?rest_route=/$matches[1]' ) );
 check( 'index.php?product=$matches[1]&cptai_lang=en' === $rules['^en/shop/([^/]+)/?$'], 'native rewrite captures are unchanged' );
 check( ! isset( $rules['^en/wp-json/(.*)'] ), 'REST routes not prefixed' );
 check( isset( $rules['^es/?$'] ), 'source-language root rule exists' );
 $GLOBALS['test_home'] = 'https://example.org/blog';
-check( 'https://example.org/blog/es/services/' === CPTAI_Routing::url( 'https://example.org/blog/en/services/', 'es' ), 'language folders work in WordPress subdirectories' );
+check( 'https://example.org/blog/services/' === CPTAI_Routing::url( 'https://example.org/blog/en/services/', 'es' ), 'source URL works in WordPress subdirectories' );
 check( 'https://example.org/blog/services/' === CPTAI_Routing::source_url( 'https://example.org/blog/es/services/' ), 'source path preserves WordPress subdirectory' );
 check( 'es' === CPTAI_Routing::language( 'https://example.org/blog/ES/services/' ), 'language prefix matching is case insensitive' );
 unset( $GLOBALS['test_home'] );

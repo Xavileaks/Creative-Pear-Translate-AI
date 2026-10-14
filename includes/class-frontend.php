@@ -51,6 +51,7 @@ final class CPTAI_Frontend {
         $data = CPTAI_Calendar::data();
         $config['calendar'] = array_intersect_key( $data, array_flip( array( $source, $target ) ) );
         $config['source'] = $source;
+        $config['initial'] = ! CPTAI_HTML::preserves_markup();
         if ( $scan ) {
             $config['scan'] = array( 'target' => $scan, 'nonce' => wp_create_nonce( 'cptai_admin' ), 'ajax' => admin_url( 'admin-ajax.php' ), 'url' => CPTAI_Routing::source_url( self::current_url() ), 'backend' => admin_url( 'admin.php?page=creative-pear-translate-ai&target=' . $scan ), 'gettext' => array_keys( self::$gettext_strings ) );
             nocache_headers();
@@ -89,11 +90,14 @@ final class CPTAI_Frontend {
             define( 'DONOTCACHEPAGE', true );
         }
         nocache_headers();
+        if ( ( CPTAI_Routing::language() ?: self::target() ) !== CPTAI_Settings::get()['source'] && ! headers_sent() ) {
+            header( 'X-Robots-Tag: noindex, follow', true );
+        }
         ob_start( array( self::class, 'translate' ) );
     }
 
     public static function translate( string $html ): string {
-        if ( ! class_exists( 'DOMDocument' ) || strlen( $html ) > 2097152 || stripos( $html, '<html' ) === false ) {
+        if ( ( ! CPTAI_HTML::preserves_markup() && ! class_exists( 'DOMDocument' ) ) || strlen( $html ) > 2097152 || stripos( $html, '<html' ) === false ) {
             return $html;
         }
         $target = CPTAI_Routing::language() ?: self::target();

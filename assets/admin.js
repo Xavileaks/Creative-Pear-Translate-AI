@@ -8,6 +8,13 @@
   let job = null;
   let stopped = false;
   let running = false;
+  let allRunning = false;
+  let allStopped = false;
+  let allJob = null;
+  const allButton = document.getElementById('cptai-all');
+  const allStop = document.getElementById('cptai-all-stop');
+  const allStatus = document.getElementById('cptai-all-status');
+  const allProgress = document.getElementById('cptai-all-progress');
   const message = text => { status.textContent = text; };
   function toast(text, error = false) {
     clearTimeout(toastTimer);
@@ -86,7 +93,7 @@
       finally { state.saving = false; state.update(); }
     });
     const aiButton = form.querySelector('.cptai-row');
-    aiButton.disabled = !config.ready;
+    aiButton.disabled = !config.ready || allRunning;
     aiButton.addEventListener('click', async () => {
       if (state.suggesting) return;
       state.suggesting = true;
@@ -99,7 +106,7 @@
         state.update();
         toast('Sugerencia preparada. Revísala y guarda la traducción.');
       } catch (error) { toast(error.message, true); }
-      finally { state.suggesting = false; aiButton.disabled = !config.ready; }
+      finally { state.suggesting = false; aiButton.disabled = !config.ready || allRunning; }
     });
     rows.set(id, state);
     state.update();
@@ -128,6 +135,7 @@
       const controller = new AbortController();
       filterController = controller;
       const input = new FormData(filterForm);
+      input.set('target', document.getElementById('cptai-filter-target').value);
       const startedRevision = rowRevision;
       input.set('paged', page);
       dictionaryResults.setAttribute('aria-busy', 'true');
@@ -173,6 +181,7 @@
     event.preventDefault();
     if (adding) return;
     const submitted = new FormData(addForm);
+    submitted.set('target', document.getElementById('cptai-filter-target').value);
     const button = addForm.querySelector('[type="submit"]');
     const addStatus = document.getElementById('cptai-add-status');
     adding = true;
@@ -201,14 +210,14 @@
   const settingsButton = settingsForm.querySelector('[type="submit"]');
   function settingsUpdate() {
     const dirty = snapshot(new FormData(settingsForm)) !== settingsBaseline;
-    settingsButton.disabled = settingsSaving || !dirty;
+    settingsButton.disabled = allRunning || running || settingsSaving || !dirty;
     settingsButton.textContent = settingsSaving ? 'Guardando…' : 'Guardar ajustes';
   }
   settingsForm.addEventListener('input', settingsUpdate);
   settingsForm.addEventListener('change', settingsUpdate);
   settingsForm.addEventListener('submit', async event => {
     event.preventDefault();
-    if (settingsSaving) return;
+    if (settingsSaving || allRunning || running) return;
     const submitted = new FormData(settingsForm);
     settingsSaving = true;
     settingsUpdate();
@@ -244,7 +253,7 @@
         if (saved[key]) expected.set(key, '1');
       }
       settingsBaseline = snapshot(expected);
-      for (const id of ['cptai-target', 'cptai-filter-target', 'cptai-add-target']) {
+      for (const id of ['cptai-target', 'cptai-filter-target']) {
         const select = document.getElementById(id);
         const previous = select.value;
         select.replaceChildren(...saved.targets.map(code => {
@@ -261,9 +270,10 @@
         message('Idiomas guardados. Actualiza el diccionario para cargar las cadenas correspondientes.');
       }
       config.provider = saved.provider;
-      config.ready = Boolean(saved.ready);
-      document.getElementById('cptai-connection-hint').hidden = config.ready;
-      for (const row of rows.values()) row.form.querySelector('.cptai-row').disabled = row.suggesting || !config.ready;
+      config.source = saved.source;
+      config.targets = saved.targets;
+      allJob = null;
+      updateReady(saved.ready);
       toast('Ajustes guardados.');
     } catch (error) { toast(error.message, true); }
     finally { settingsSaving = false; settingsUpdate(); }
@@ -272,8 +282,9 @@
   function updateReady(ready) {
     config.ready = Boolean(ready);
     document.getElementById('cptai-connection-hint').hidden = config.ready;
-    for (const row of rows.values()) row.form.querySelector('.cptai-row').disabled = row.suggesting || !config.ready;
-    if (!running && job) document.getElementById('cptai-ai').disabled = !job.pending || !config.ready;
+    for (const row of rows.values()) row.form.querySelector('.cptai-row').disabled = row.suggesting || allRunning || !config.ready;
+    allButton.disabled = allRunning || running || !config.ready;
+    if (!running) document.getElementById('cptai-ai').disabled = allRunning || !job?.pending || !config.ready;
   }
   const planState = document.getElementById('cptai-plan-status');
   const planDisconnect = document.getElementById('cptai-plan-disconnect');
@@ -309,11 +320,61 @@
   checkPlan();
   setInterval(checkPlan, 6000);
   window.addEventListener('beforeunload', event => {
-    if (adding || addDirty() || dirtyRows().length || [...rows.values()].some(row => row.saving || row.suggesting) || snapshot(new FormData(settingsForm)) !== settingsBaseline) {
+    if (running || allRunning || adding || addDirty() || dirtyRows().length || [...rows.values()].some(row => row.saving || row.suggesting) || snapshot(new FormData(settingsForm)) !== settingsBaseline) {
       event.preventDefault(); event.returnValue = '';
     }
   });
   const fields = () => ({url: document.getElementById('cptai-url').value, target: document.getElementById('cptai-target').value});
+  function captureBusy(busy) {
+    for (const element of document.querySelectorAll('#cptai-url, #cptai-target, #cptai-content-select, [data-cptai-content]')) element.disabled = busy;
+    const empty = !document.getElementById('cptai-url').value;
+    document.getElementById('cptai-read').disabled = busy || empty;
+    document.getElementById('cptai-scan').disabled = busy || empty;
+  }
+  let contentRevision = 0;
+  let contentType = 'custom';
+  let customUrl = document.getElementById('cptai-url').value;
+  const contentSelect = document.getElementById('cptai-content-select');
+  const contentStatus = document.getElementById('cptai-content-status');
+  function resetPageJob() { if (running || allRunning) return; job = null; updateReady(config.ready); }
+  contentSelect.addEventListener('change', () => { document.getElementById('cptai-url').value = contentSelect.value; resetPageJob(); });
+  document.getElementById('cptai-url').addEventListener('input', resetPageJob);
+  document.getElementById('cptai-target').addEventListener('change', resetPageJob);
+  for (const tab of document.querySelectorAll('[data-cptai-content]')) {
+    tab.addEventListener('click', async () => {
+      if (running || allRunning) return;
+      const revision = ++contentRevision;
+      if (contentType === 'custom') customUrl = document.getElementById('cptai-url').value;
+      contentType = tab.dataset.cptaiContent;
+      resetPageJob();
+      for (const item of document.querySelectorAll('[data-cptai-content]')) item.setAttribute('aria-pressed', String(item === tab));
+      document.getElementById('cptai-custom-url').hidden = contentType !== 'custom';
+      document.getElementById('cptai-content-choice').hidden = contentType === 'custom';
+      contentStatus.hidden = contentType === 'custom';
+      if (contentType === 'custom') {
+        document.getElementById('cptai-url').value = customUrl;
+        document.getElementById('cptai-read').disabled = false;
+        document.getElementById('cptai-scan').disabled = false;
+        return;
+      }
+      document.getElementById('cptai-content-label').textContent = tab.textContent;
+      contentSelect.replaceChildren(); contentSelect.disabled = true;
+      contentStatus.textContent = 'Buscando contenido publicado de este sitio…';
+      document.getElementById('cptai-url').value = '';
+      document.getElementById('cptai-read').disabled = true;
+      document.getElementById('cptai-scan').disabled = true;
+      try {
+        const result = await request('content_list', {type:contentType});
+        if (revision !== contentRevision) return;
+        contentSelect.replaceChildren(...result.items.map(item => { const option = document.createElement('option'); option.value = item.url; option.textContent = item.title; return option; }));
+        contentSelect.disabled = !result.items.length;
+        document.getElementById('cptai-url').value = contentSelect.value;
+        document.getElementById('cptai-read').disabled = !result.items.length;
+        document.getElementById('cptai-scan').disabled = !result.items.length;
+        contentStatus.textContent = result.items.length ? `${result.items.length} disponibles. Solo se muestra contenido público sin contraseña.` : 'No hay contenido publicado disponible en esta categoría.';
+      } catch (error) { if (revision === contentRevision) { contentStatus.textContent = error.message; toast(error.message, true); } }
+    });
+  }
   for (const button of document.querySelectorAll('.cptai-models')) {
     button.addEventListener('click', async () => {
       button.disabled = true;
@@ -355,8 +416,10 @@
   });
   document.getElementById('cptai-stop').addEventListener('click', () => { stopped = true; message('Se detendrá cuando termine el lote actual.'); });
   document.getElementById('cptai-ai').addEventListener('click', async () => {
-    if (!job || running) return;
+    if (!job || running || allRunning) return;
     running = true; stopped = false;
+    captureBusy(true);
+    updateReady(config.ready);
     document.getElementById('cptai-ai').disabled = true;
     document.getElementById('cptai-read').disabled = true;
     document.getElementById('cptai-stop').hidden = false;
@@ -372,9 +435,72 @@
     } catch (error) { message(error.message); toast(error.message, true); }
     finally {
       running = false;
+      updateReady(config.ready);
       document.getElementById('cptai-ai').disabled = complete || !config.ready;
-      document.getElementById('cptai-read').disabled = false;
+      captureBusy(false);
       document.getElementById('cptai-stop').hidden = true;
+    }
+  });
+  const skipDrafts = () => JSON.stringify([...rows.entries()].filter(([,row]) => row.field.value !== row.baseline || row.saving || row.suggesting).map(([id]) => Number(id)));
+  allStop.addEventListener('click', () => {
+    allStopped = true;
+    allStop.disabled = true;
+    allStatus.textContent = 'Se detendrá después de guardar la cadena actual.';
+  });
+  document.getElementById('cptai-filter-target').addEventListener('change', () => { allJob = null; allButton.textContent = 'Traducir todo'; });
+  allButton.addEventListener('click', async () => {
+    if (allRunning || running || !config.ready) return;
+    const target = document.getElementById('cptai-filter-target').value;
+    allRunning = true; allStopped = false;
+    updateReady(config.ready);
+    allButton.textContent = 'Traduciendo…';
+    allStop.hidden = false; allStop.disabled = false;
+    allStatus.hidden = false;
+    allProgress.hidden = false;
+    captureBusy(true);
+    document.getElementById('cptai-filter-target').disabled = true;
+    settingsButton.disabled = true;
+    let complete = false;
+    try {
+      allStatus.textContent = 'Preparando todas las cadenas pendientes del idioma seleccionado…';
+      if (!allJob || allJob.target !== target) allJob = await request('prepare_all', {target, sort:document.getElementById('cptai-sort').value, skip:skipDrafts()});
+      allProgress.max = Math.max(1, allJob.total);
+      allProgress.value = allJob.total - allJob.pending;
+      if (!allJob.pending) complete = true;
+      while (!allStopped && !complete) {
+        allStatus.textContent = `${allProgress.value} de ${allJob.total} procesadas · Traduciendo y guardando la siguiente cadena…`;
+        const result = await request('batch', {job:allJob.job, skip:skipDrafts()});
+        allJob.pending = Math.max(0, result.total - result.done);
+        allProgress.value = result.done;
+        if (result.row) {
+          const row = rows.get(String(result.row.id));
+          if (row && !row.saving && !row.suggesting) {
+            const dirty = row.field.value !== row.baseline;
+            row.baseline = result.row.text;
+            if (!dirty) row.field.value = result.row.text;
+            row.changedAt = ++rowRevision;
+            row.update();
+          }
+        }
+        allStatus.textContent = `${result.done} de ${result.total} procesadas. Cada traducción queda guardada al terminar.`;
+        complete = result.complete;
+      }
+      allStatus.textContent = complete ? 'Diccionario procesado. Se conservaron las traducciones y las ediciones pendientes.' : `${allProgress.value} de ${allJob.total} procesadas. Detenido; lo guardado se conserva.`;
+      toast(complete ? 'Todas las traducciones pendientes se han procesado.' : 'Traducción detenida. Puedes continuar cuando quieras.');
+      if (complete) allJob = null;
+    } catch (error) {
+      allStatus.textContent = `Traducción pausada: ${error.message} Lo guardado se conserva.`;
+      toast(error.message, true);
+      allJob = null;
+    } finally {
+      allRunning = false;
+      captureBusy(false);
+      document.getElementById('cptai-filter-target').disabled = false;
+      allStop.hidden = true;
+      allButton.textContent = allJob ? 'Continuar traducción' : 'Traducir todo';
+      settingsUpdate();
+      updateReady(config.ready);
+      scheduleFilter();
     }
   });
 })();

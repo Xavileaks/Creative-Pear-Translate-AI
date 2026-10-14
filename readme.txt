@@ -3,7 +3,7 @@ Contributors: xavileaks
 Tags: translation, multilingual, openai, claude
 Requires at least: 6.4
 Requires PHP: 8.1
-Stable tag: 1.4.2
+Stable tag: 1.5.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -19,7 +19,7 @@ Diccionario compartido de cadenas con edición desde WordPress, APIs opcionales 
 7. Añadir cadena manual permite registrar mensajes de éxito/error antes de que aparezcan en un formulario. Recarga las páginas abiertas después de guardar una cadena nueva.
 
 == External services ==
-Las conexiones de IA son opcionales y se realizan solo al pulsar Consultar modelos, Sugerir con IA o Traducir pendientes con IA. Se envía la clave API únicamente al proveedor correspondiente; al traducir se envían las cadenas, idiomas y modelo. No se envía el HTML completo, cookies, contraseñas ni información de pedidos. Las visitas normales y la captura no llaman a APIs de IA. Cada proveedor puede aplicar cargos y sus propias condiciones.
+Las conexiones de IA son opcionales y se realizan solo al pulsar Consultar modelos, Sugerir con IA, Traducir pendientes con IA o Traducir todo. Se envía la clave API únicamente al proveedor correspondiente; al traducir se envían las cadenas, idiomas y modelo. No se envía el HTML completo, cookies, contraseñas ni información de pedidos. Las visitas normales y la captura no llaman a APIs de IA. Cada proveedor puede aplicar cargos y sus propias condiciones.
 
 ChatGPT - Mi plan (experimental): un asistente local de código abierto completa OAuth en auth.openai.com, valida identidad y permisos, consulta modelos y procesa las traducciones solicitadas desde WordPress. Requiere Node.js 22+ y una cuenta elegible autorizada por OpenAI. Debe permanecer abierto mientras se traduce. Los tokens de OpenAI se mantienen solo en memoria en el ordenador; WordPress recibe únicamente el nombre de cuenta, catálogo de modelos y respuestas de los trabajos solicitados. El plan comparte sus límites y créditos. No cambia automáticamente a una API de pago. Las dos conexiones API se conservan.
 
@@ -36,6 +36,14 @@ Condiciones: https://www.anthropic.com/legal/commercial-terms
 Privacidad: https://www.anthropic.com/legal/privacy
 
 == Changelog ==
+
+= 1.5.0 =
+* Sustitución de textos sin reconstruir el HTML: conserva contenedores, etiquetas de Elementor, SVG, scripts y estilos.
+* El idioma original usa sus URLs sin prefijo; las variantes antiguas del original redirigen con 301.
+* Traducir todo procesa las pendientes del diccionario una por una, guarda cada resultado y permite detener/continuar.
+* Alta manual con dos campos de una línea y el idioma del diccionario, sin URL ni selector redundante.
+* Captura por Páginas, Entradas, Productos o URL personalizada; listas de contenido publicado sin contraseña.
+* Actualización inmediata de los botones de IA al guardar la conexión.
 
 = 1.4.2 =
 * Se recoge el texto de los eventos delta/done de Responses, también cuando el evento final no lo repite.

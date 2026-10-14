@@ -16,7 +16,7 @@ final class CPTAI_Admin {
         } );
         add_action( 'admin_post_cptai_settings', array( self::class, 'save_settings' ) );
         add_action( 'admin_post_cptai_edit', array( self::class, 'edit' ) );
-        foreach ( array( 'models', 'prepare', 'batch', 'capture', 'scan_link', 'row', 'save_string', 'save_settings_ajax', 'dictionary', 'add_string', 'plan_status', 'plan_disconnect', 'plan_result' ) as $action ) {
+        foreach ( array( 'models', 'content_list', 'prepare', 'prepare_all', 'batch', 'capture', 'scan_link', 'row', 'save_string', 'save_settings_ajax', 'dictionary', 'add_string', 'plan_status', 'plan_disconnect', 'plan_result' ) as $action ) {
             add_action( 'wp_ajax_cptai_' . $action, array( self::class, $action ) );
         }
     }
@@ -109,6 +109,22 @@ final class CPTAI_Admin {
         self::result( array( 'url' => add_query_arg( array( 'cptai_scan' => $target, '_cptai_nonce' => wp_create_nonce( 'cptai_scan' ) ), $url ) ) );
     }
 
+    public static function content_list(): void {
+        self::permission();
+        $type = is_string( $_POST['type'] ?? null ) ? $_POST['type'] : '';
+        if ( ! in_array( $type, array( 'page', 'post', 'product' ), true ) ) { self::result( new WP_Error( 'type', 'Selecciona páginas, entradas o productos.' ) ); }
+        $items = array();
+        if ( post_type_exists( $type ) ) {
+            $excluded = array_filter( array_map( 'intval', array( get_option( 'woocommerce_cart_page_id' ), get_option( 'woocommerce_checkout_page_id' ), get_option( 'woocommerce_myaccount_page_id' ) ) ) );
+            $posts = get_posts( array( 'post_type' => $type, 'post_status' => 'publish', 'has_password' => false, 'numberposts' => -1, 'orderby' => 'title', 'order' => 'ASC', 'post__not_in' => $excluded ) );
+            foreach ( $posts as $post ) {
+                $url = get_permalink( $post );
+                if ( $url && CPTAI_Frontend::local_url( $url ) ) { $items[] = array( 'id' => $post->ID, 'title' => html_entity_decode( get_the_title( $post ), ENT_QUOTES | ENT_HTML5, 'UTF-8' ) ?: '(Sin título)', 'url' => $url ); }
+            }
+        }
+        self::result( array( 'items' => $items ) );
+    }
+
     public static function capture(): void {
         self::permission();
         $target = self::target();
@@ -136,7 +152,7 @@ final class CPTAI_Admin {
         if ( is_wp_error( $url ) ) {
             self::result( $url );
         }
-        if ( ! class_exists( 'DOMDocument' ) ) {
+        if ( ! CPTAI_HTML::preserves_markup() && ! class_exists( 'DOMDocument' ) ) {
             self::result( new WP_Error( 'dom', 'Activa la extensión PHP DOM en tu servidor.' ) );
         }
         // No cookies or authorization forwarded. No redirects to another origin.
@@ -165,6 +181,43 @@ final class CPTAI_Admin {
         self::result( array( 'job' => $job, 'total' => count( $strings ), 'pending' => count( $pending ), 'added' => $added, 'preview' => CPTAI_Routing::url( $url, $target ) ) );
     }
 
+    private static function skip_ids(): array {
+        $raw = isset( $_POST['skip'] ) && is_string( $_POST['skip'] ) ? wp_unslash( $_POST['skip'] ) : '[]';
+        $ids = strlen( $raw ) <= 100000 ? json_decode( $raw, true ) : null;
+        if ( ! is_array( $ids ) || count( $ids ) > 10000 ) { self::result( new WP_Error( 'drafts', 'Hay demasiadas ediciones pendientes. Guarda tus cambios antes de traducir todo.' ) ); }
+        return array_values( array_filter( array_map( 'absint', array_filter( $ids, 'is_scalar' ) ) ) );
+    }
+
+    public static function prepare_all(): void {
+        self::permission();
+        global $wpdb;
+        $target = self::target();
+        $settings = CPTAI_Settings::get();
+        if ( ! CPTAI_Settings::ready() ) { self::result( new WP_Error( 'connection', 'Configura la conexión y el modelo antes de traducir.' ) ); }
+        $skip = self::skip_ids();
+        $sort_options = CPTAI_Store::sort_options();
+        $sort = is_string( $_POST['sort'] ?? null ) ? $_POST['sort'] : 'newest';
+        $order = $sort_options[ $sort ]['sql'] ?? $sort_options['newest']['sql'];
+        $ids = $wpdb->get_col( $wpdb->prepare( 'SELECT id FROM ' . CPTAI_Store::table() . " WHERE source_lang=%s AND target_lang=%s AND translated='' ORDER BY " . $order, $settings['source'], $target ) );
+        if ( $wpdb->last_error ) { self::result( new WP_Error( 'db', 'No se pudo preparar el diccionario.' ) ); }
+        $ids = array_values( array_diff( array_map( 'intval', $ids ), $skip ) );
+        $id = wp_generate_uuid4();
+        $model = $settings[ $settings['provider'] . '_model' ];
+        set_transient( 'cptai_job_' . $id, array( 'user' => get_current_user_id(), 'source' => $settings['source'], 'target' => $target, 'ids' => $ids, 'offset' => 0, 'provider' => $settings['provider'], 'model' => $model ), HOUR_IN_SECONDS );
+        self::result( array( 'job' => $id, 'total' => count( $ids ), 'pending' => count( $ids ), 'target' => $target ) );
+    }
+
+    public static function batch_result( array $job ): array {
+        $total = count( $job['ids'] ?? $job['strings'] );
+        $result = array( 'done' => $job['offset'], 'total' => $total, 'complete' => $job['offset'] >= $total );
+        if ( isset( $job['ids'] ) && $job['offset'] > 0 ) {
+            global $wpdb;
+            $row = $wpdb->get_row( $wpdb->prepare( 'SELECT id,translated FROM ' . CPTAI_Store::table() . ' WHERE id=%d AND source_lang=%s AND target_lang=%s', $job['ids'][ $job['offset'] - 1 ], $job['source'], $job['target'] ) );
+            if ( $row ) { $result['row'] = array( 'id' => (int) $row->id, 'text' => $row->translated ); }
+        }
+        return $result;
+    }
+
     public static function batch(): void {
         self::permission();
         $id = sanitize_text_field( wp_unslash( $_POST['job'] ?? '' ) );
@@ -175,26 +228,40 @@ final class CPTAI_Admin {
         if ( ! $job || (int) $job['user'] !== get_current_user_id() || $job['source'] !== CPTAI_Settings::get()['source'] || ! in_array( $job['target'], CPTAI_Settings::get()['targets'], true ) ) {
             self::result( new WP_Error( 'job', 'La sesión caducó o los idiomas cambiaron. Vuelve a leer la página; las traducciones guardadas se conservan.' ) );
         }
+        $settings = CPTAI_Settings::get();
+        if ( isset( $job['ids'] ) && ( $job['provider'] !== $settings['provider'] || $job['model'] !== $settings[ $settings['provider'] . '_model' ] ) ) {
+            self::result( new WP_Error( 'changed', 'La conexión o el modelo cambiaron. Inicia de nuevo Traducir todo; lo guardado se conserva.' ) );
+        }
+        $skip = isset( $job['ids'] ) ? self::skip_ids() : array();
         $lock = 'cptai_lock_' . $id;
         if ( ! add_option( $lock, time(), '', false ) ) {
             self::result( new WP_Error( 'busy', 'Este lote ya está en curso. Espera antes de reintentar.' ) );
         }
         $result = null;
         try {
+            if ( 'chatgpt' === $settings['provider'] && ! empty( $job['plan_ticket'] ) ) {
+                $queued = get_transient( 'cptai_plan_' . $job['plan_ticket'] );
+                if ( $queued && $queued['expires'] >= time() ) { $result = array( 'plan_ticket' => $job['plan_ticket'] ); }
+                else { unset( $job['plan_ticket'] ); }
+            }
             $strings = array();
-            foreach ( array_slice( $job['strings'], $job['offset'], 10 ) as $string ) {
+            if ( ! $result && isset( $job['ids'][ $job['offset'] ] ) ) {
+                global $wpdb;
+                $row_id = $job['ids'][ $job['offset'] ];
+                $row = $wpdb->get_row( $wpdb->prepare( 'SELECT original,translated FROM ' . CPTAI_Store::table() . ' WHERE id=%d AND source_lang=%s AND target_lang=%s', $row_id, $job['source'], $job['target'] ) );
+                if ( $wpdb->last_error ) { throw new RuntimeException( 'db' ); }
+                if ( $row && '' === $row->translated && ! in_array( $row_id, $skip, true ) ) { $strings[] = $row->original; }
+                else { $job['offset']++; }
+            }
+            foreach ( $result || isset( $job['ids'] ) ? array() : array_slice( $job['strings'], $job['offset'], 10 ) as $string ) {
                 $candidate = array_merge( $strings, array( $string ) );
                 if ( strlen( wp_json_encode( $candidate ) ) > 12000 ) {
                     break;
                 }
                 $strings[] = $string;
             }
-            if ( $strings ) {
+            if ( ! $result && $strings ) {
                 if ( 'chatgpt' === CPTAI_Settings::get()['provider'] ) {
-                    if ( ! empty( $job['plan_ticket'] ) ) {
-                        $queued = get_transient( 'cptai_plan_' . $job['plan_ticket'] );
-                        if ( ! $queued || $queued['expires'] < time() ) { unset( $job['plan_ticket'] ); }
-                    }
                     if ( ! empty( $job['plan_ticket'] ) ) {
                         $result = array( 'plan_ticket' => $job['plan_ticket'] );
                     } else {
@@ -218,7 +285,7 @@ final class CPTAI_Admin {
             }
             if ( ! $result ) {
                 set_transient( 'cptai_job_' . $id, $job, HOUR_IN_SECONDS );
-                $result = array( 'done' => $job['offset'], 'total' => count( $job['strings'] ), 'complete' => $job['offset'] >= count( $job['strings'] ) );
+                $result = self::batch_result( $job );
             }
         } catch ( Throwable $e ) {
             $result = new WP_Error( 'save', 'No se pudo guardar el lote. Vuelve a leer la página para recuperar el progreso.' );

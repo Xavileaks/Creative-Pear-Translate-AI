@@ -16,7 +16,18 @@ $plan_status = CPTAI_Plan::status();
             <h2 id="cptai-capture-heading">Capturar cadenas de una página</h2>
             <p class="cptai-lead">Lee el HTML de WordPress o abre la captura en navegador para detectar también los textos de JavaScript y AJAX.</p>
             <div class="cptai-panel">
-                <div class="cptai-capture-row">
+                <div class="cptai-content-tabs" role="group" aria-label="Tipo de contenido para capturar">
+                    <button type="button" class="cptai-button" data-cptai-content="page" aria-pressed="false">Páginas</button>
+                    <button type="button" class="cptai-button" data-cptai-content="post" aria-pressed="false">Entradas</button>
+                    <button type="button" class="cptai-button" data-cptai-content="product" aria-pressed="false">Productos</button>
+                    <button type="button" class="cptai-button" data-cptai-content="custom" aria-pressed="true">URL personalizada</button>
+                </div>
+                <div class="cptai-capture-row" id="cptai-content-choice" hidden>
+                    <label for="cptai-content-select" class="cptai-capture-label" id="cptai-content-label">Contenido publicado</label>
+                    <select id="cptai-content-select" class="cptai-url"></select>
+                </div>
+                <p id="cptai-content-status" class="cptai-hint" role="status" hidden></p>
+                <div class="cptai-capture-row" id="cptai-custom-url">
                     <label for="cptai-url" class="cptai-capture-label">URL pública</label>
                     <input type="url" id="cptai-url" class="cptai-url" value="<?php echo esc_url( home_url( '/' ) ); ?>" placeholder="https://tuweb.com/pagina/">
                 </div>
@@ -48,16 +59,23 @@ $plan_status = CPTAI_Plan::status();
                 <button class="cptai-button">Filtrar / actualizar</button>
                 <div class="cptai-filter-sort"><label for="cptai-sort">Ordenar</label><select name="sort" id="cptai-sort"><?php foreach ( $sort_options as $key => $option ) : ?><option value="<?php echo esc_attr( $key ); ?>" <?php selected( $sort, $key ); ?>><?php echo esc_html( $option['label'] ); ?></option><?php endforeach; ?></select></div>
             </form>
+            <div class="cptai-translate-all">
+                <button type="button" class="cptai-button cptai-button-primary" id="cptai-all" <?php disabled( ! $ready ); ?>>Traducir todo</button>
+                <button type="button" class="cptai-button" id="cptai-all-stop" hidden>Detener después de esta cadena</button>
+                <span class="cptai-hint">Traduce y guarda una por una todas las pendientes de este idioma, incluidas las de otras páginas del diccionario. Conserva las traducciones existentes.</span>
+                <progress id="cptai-all-progress" max="1" value="0" hidden aria-label="Progreso de traducción del diccionario"></progress>
+                <p id="cptai-all-status" role="status" aria-live="polite" hidden></p>
+            </div>
             <details class="cptai-manual" id="cptai-manual">
                 <summary>Añadir cadena manual</summary>
-                <p class="cptai-hint">Copia el mensaje exacto de éxito o error, aunque solo aparezca después de enviar un formulario. Se traducirá cuando aparezca en la página. No incluyas HTML ni datos personales.</p>
+                <p class="cptai-hint">Añade el mensaje exacto; usa el idioma seleccionado arriba.</p>
                 <form id="cptai-add-form">
                     <div class="cptai-manual-grid">
-                        <div><label for="cptai-add-original">Texto original</label><textarea id="cptai-add-original" name="original" rows="3" required placeholder="Your message was sent successfully."></textarea></div>
-                        <div><label for="cptai-add-translated">Traducción</label><textarea id="cptai-add-translated" name="translated" rows="3" placeholder="Tu mensaje se ha enviado correctamente."></textarea></div>
+                        <div><label for="cptai-add-original">Texto original</label><input type="text" id="cptai-add-original" name="original" required placeholder="Your message was sent successfully."></div>
+                        <div><label for="cptai-add-translated">Traducción</label><input type="text" id="cptai-add-translated" name="translated" placeholder="Tu mensaje se ha enviado correctamente."></div>
                     </div>
-                    <div class="cptai-manual-controls"><label for="cptai-add-target">Idioma de destino</label><select name="target" id="cptai-add-target"><?php foreach ( $settings['targets'] as $code ) : ?><option value="<?php echo esc_attr( $code ); ?>" <?php selected( $target, $code ); ?>><?php echo esc_html( $languages[ $code ] ); ?></option><?php endforeach; ?></select><label for="cptai-add-url">Página de referencia (opcional)</label><input type="url" id="cptai-add-url" name="url" placeholder="<?php echo esc_url( home_url( '/' ) ); ?>"><button type="submit" class="cptai-button cptai-button-primary">Añadir cadena</button></div>
-                    <p class="cptai-hint">Sin traducción, se añade como pendiente. La misma cadena se guarda una sola vez por idioma. Recarga una página que ya estaba abierta para cargar las nuevas traducciones.</p>
+                    <div class="cptai-manual-controls"><button type="submit" class="cptai-button cptai-button-primary">Añadir cadena</button></div>
+                    <p class="cptai-hint">Sin traducción queda pendiente. Recarga las páginas abiertas para aplicar la nueva cadena.</p>
                     <p id="cptai-add-status" role="status" aria-live="polite"></p>
                 </form>
             </details>
@@ -78,7 +96,7 @@ $plan_status = CPTAI_Plan::status();
                     <section class="cptai-setting-card">
                         <h3>Idiomas</h3>
                         <div class="cptai-setting-field"><label for="cptai-source">Idioma original</label><select id="cptai-source" name="source"><?php foreach ( $languages as $code => $name ) : ?><option value="<?php echo esc_attr( $code ); ?>" <?php selected( $settings['source'], $code ); ?>><?php echo esc_html( $name ); ?></option><?php endforeach; ?></select></div>
-                        <div class="cptai-setting-field"><label>Idiomas de destino</label><div class="cptai-languages"><?php foreach ( $languages as $code => $name ) : ?><label class="cptai-check"><input type="checkbox" name="targets[]" value="<?php echo esc_attr( $code ); ?>" <?php checked( in_array( $code, $settings['targets'], true ) ); ?>> <?php echo esc_html( $name ); ?></label><?php endforeach; ?></div><p class="cptai-hint">El idioma original se excluye de los destinos. Los enlaces usan <code>/es/</code>, <code>/en/</code>, etc., también para el original.</p></div>
+                        <div class="cptai-setting-field"><label>Idiomas de destino</label><div class="cptai-languages"><?php foreach ( $languages as $code => $name ) : ?><label class="cptai-check"><input type="checkbox" name="targets[]" value="<?php echo esc_attr( $code ); ?>" <?php checked( in_array( $code, $settings['targets'], true ) ); ?>> <?php echo esc_html( $name ); ?></label><?php endforeach; ?></div><p class="cptai-hint">El idioma original usa la URL sin prefijo. Los destinos usan <code>/es/</code>, <code>/fr/</code>, etc.</p></div>
                         <?php if ( ! get_option( 'permalink_structure' ) ) : ?><p class="cptai-hint">Activa enlaces permanentes con nombre de entrada en <a href="<?php echo esc_url( admin_url( 'options-permalink.php' ) ); ?>">Ajustes → Enlaces permanentes</a> para que tu servidor resuelva las carpetas de idioma.</p><?php endif; ?>
                     </section>
                     <section class="cptai-setting-card">

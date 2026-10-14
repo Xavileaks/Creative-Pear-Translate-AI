@@ -8,7 +8,7 @@
   const changes = new WeakMap();
   const pending = new Set();
   const seen = new Set();
-  const excluded = 'script,style,noscript,code,pre,textarea,svg,math,template,[translate="no"],[data-cptai-ignore],.notranslate,.cptai-switcher,#wpadminbar';
+  const excluded = 'script,style,noscript,code,pre,textarea,svg,math,template,iframe,xmp,noembed,noframes,[translate="no"],[data-cptai-ignore],.notranslate,.cptai-switcher,#wpadminbar';
   const attributes = ['alt', 'title', 'placeholder', 'aria-label'];
   let timer;
   let sending = false;
@@ -29,7 +29,7 @@
     let path = url.pathname.slice(base.length + 1);
     if (config.languages.includes(path.split('/')[0])) path = path.split('/').slice(1).join('/');
     if (/(^|\/)(wp-admin|wp-json|wp-login\.php|wp-cron\.php)(\/|$)/i.test(path) || /\.(pdf|zip|jpg|jpeg|png|gif|webp|svg|mp4|mp3|css|js|xml|json)$/i.test(path)) return;
-    url.pathname = `${base}/${config.language}/${path}`;
+    url.pathname = config.language === config.source ? `${base}/${path}` : `${base}/${config.language}/${path}`;
     url.searchParams.delete('cptai_lang');
     if (url.href !== raw) element.setAttribute('href', url.href);
   }
@@ -111,7 +111,12 @@
     walk(document);
     timer = setTimeout(flush, 300);
   }
-  // Initial HTML was translated on the server; translate only subsequent DOM updates.
+  if (!config.scan && config.initial) {
+    document.documentElement.lang = config.language;
+    document.documentElement.dir = config.language === 'ar' ? 'rtl' : 'ltr';
+    walk(document);
+  }
+  // Modern WordPress translates initial HTML without reparsing its structure.
   new MutationObserver(records => {
     for (const record of records) {
       if (record.type === 'childList') for (const node of record.addedNodes) walk(node);

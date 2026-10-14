@@ -192,7 +192,7 @@ final class CPTAI_Plan {
         if ( ! $job || (int) $job['user'] !== get_current_user_id() ) { return new WP_Error( 'job', 'La petición caducó o pertenece a otra sesión.' ); }
         $link = get_option( self::OPTION, array() );
         $settings = CPTAI_Settings::get();
-        if ( $job['installation'] !== ( $link['installation'] ?? '' ) || 'chatgpt' !== $settings['provider'] || $job['source'] !== $settings['source'] || ! in_array( $job['target'], $settings['targets'], true ) ) {
+        if ( $job['installation'] !== ( $link['installation'] ?? '' ) || 'chatgpt' !== $settings['provider'] || $job['model'] !== $settings['chatgpt_model'] || $job['source'] !== $settings['source'] || ! in_array( $job['target'], $settings['targets'], true ) ) {
             self::release( $id );
             return new WP_Error( 'changed', 'La conexión, el proveedor o los idiomas cambiaron. Vuelve a preparar la traducción.' );
         }
@@ -221,7 +221,7 @@ final class CPTAI_Plan {
                 $batch['offset'] += count( $job['strings'] );
                 unset( $batch['plan_ticket'] );
                 set_transient( 'cptai_job_' . $batch_id, $batch, HOUR_IN_SECONDS );
-                $job['result'] = array( 'done' => $batch['offset'], 'total' => count( $batch['strings'] ), 'complete' => $batch['offset'] >= count( $batch['strings'] ) );
+                $job['result'] = CPTAI_Admin::batch_result( $batch );
             }
             set_transient( 'cptai_plan_' . $id, $job, 180 );
             self::release( $id );
