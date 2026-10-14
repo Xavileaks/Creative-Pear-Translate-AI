@@ -3,7 +3,7 @@ Contributors: xavileaks
 Tags: translation, multilingual, openai, claude
 Requires at least: 6.4
 Requires PHP: 8.1
-Stable tag: 1.6.0
+Stable tag: 1.6.1
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -36,6 +36,11 @@ Condiciones: https://www.anthropic.com/legal/commercial-terms
 Privacidad: https://www.anthropic.com/legal/privacy
 
 == Changelog ==
+
+= 1.6.1 =
+* Consulta GitHub Releases cada 5 minutos mediante WP-Cron, con caché compartida y peticiones condicionales.
+* Integración con Actualizar ahora y la opción nativa de actualizaciones automáticas de WordPress.
+* Solo ofrece versiones estables con el ZIP instalable del repositorio correcto; conserva las preferencias de cada web.
 
 = 1.6.0 =
 * Leer todo el sitio recorre portada, páginas, entradas y productos públicos, una URL por petición, con progreso y detener/continuar.
