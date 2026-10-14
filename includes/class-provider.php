@@ -9,6 +9,10 @@ final class CPTAI_Provider {
     }
 
     public static function models( string $provider ) {
+        if ( 'chatgpt' === $provider ) {
+            $status = CPTAI_Plan::status();
+            return $status['online'] && $status['models'] ? $status['models'] : new WP_Error( 'offline', 'Abre el asistente e inicia sesión para consultar los modelos de tu plan.' );
+        }
         $key = CPTAI_Settings::key( $provider );
         if ( '' === $key ) {
             return new WP_Error( 'key', 'Guarda primero una clave API válida.' );
@@ -51,6 +55,9 @@ final class CPTAI_Provider {
     public static function translate( array $strings, string $source, string $target ) {
         $settings = CPTAI_Settings::get();
         $provider = $settings['provider'];
+        if ( 'chatgpt' === $provider ) {
+            return new WP_Error( 'plan', 'La traducción con el plan se realiza a través del asistente local. No se ha utilizado una clave API.' );
+        }
         $key = CPTAI_Settings::key( $provider );
         $model = $settings[ $provider . '_model' ];
         if ( '' === $key || '' === $model ) {

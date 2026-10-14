@@ -18,6 +18,8 @@ jobs:
           php tests/run.php
           php tests/calendar.php
           node tests/calendar.cjs
+          node tests/companion.cjs
+          node --check companion/cptai-companion.cjs
           node --check assets/calendar.js
           node --check assets/admin.js
           node --check assets/frontend.js
@@ -25,7 +27,7 @@ jobs:
         run: |
           mkdir -p build/creative-pear-translate-ai
           cp creative-pear-translate-ai.php README.md readme.txt LICENSE build/creative-pear-translate-ai/
-          cp -r includes assets build/creative-pear-translate-ai/
+          cp -r includes assets companion build/creative-pear-translate-ai/
           cd build
           zip -r creative-pear-translate-ai.zip creative-pear-translate-ai
           sha256sum creative-pear-translate-ai.zip > creative-pear-translate-ai.zip.sha256

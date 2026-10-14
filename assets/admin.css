@@ -111,6 +111,11 @@
 #cptai-app .cptai-model-row input { flex: 1; min-width: 180px; }
 #cptai-app .cptai-settings-footer { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding-top: 16px; }
 #cptai-app .cptai-settings-footer .cptai-hint { flex: 1; min-width: 200px; margin: 0; }
+#cptai-app .cptai-plan-steps { margin: 12px 0 16px 20px; line-height: 1.65; }
+#cptai-app .cptai-plan-steps li + li { margin-top: 8px; }
+#cptai-app .cptai-plan-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+#cptai-app .cptai-plan-state { padding: 10px 12px; border-radius: 4px; background: var(--cptai-pale, #f2f5fa); color: var(--cptai-muted); }
+#cptai-app .cptai-plan-state.is-online { color: var(--cptai-blue); background: #eef2ff; }
 #cptai-app #cptai-toast { position: fixed; right: 24px; bottom: 24px; z-index: 100001; display: flex; align-items: center; gap: 12px; width: max-content; max-width: min(440px,calc(100vw - 32px)); padding: 15px 16px; background: var(--cptai-blue); color: var(--cptai-white); border-radius: 7px; box-shadow: 0 8px 20px rgba(30,52,92,.18); animation: cptai-toast-enter .16s ease-out; }
 #cptai-app #cptai-toast.is-error { background: var(--cptai-error); }
 #cptai-app .cptai-toast-icon { width: 22px; height: 22px; flex: none; }

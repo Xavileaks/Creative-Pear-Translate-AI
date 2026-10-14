@@ -1,7 +1,8 @@
 <?php
 defined( 'ABSPATH' ) || exit;
 $design_url = plugins_url( 'assets/design/', CPTAI_FILE );
-$ready = '' !== CPTAI_Settings::key( $settings['provider'] ) && '' !== $settings[ $settings['provider'] . '_model' ];
+$ready = CPTAI_Settings::ready();
+$plan_status = CPTAI_Plan::status();
 ?>
 <div id="cptai-app" class="wrap">
     <header class="cptai-app-header">
@@ -28,7 +29,7 @@ $ready = '' !== CPTAI_Settings::key( $settings['provider'] ) && '' !== $settings
                     <button type="button" class="cptai-button" id="cptai-stop" hidden>Detener tras este lote</button>
                 </div>
                 <p class="cptai-hint">No se capturan campos personales ni páginas de carrito, checkout o cuenta. Puedes excluir una zona con <code>translate="no"</code> o <code>data-cptai-ignore</code>.</p>
-                <p class="cptai-hint" id="cptai-connection-hint" <?php echo $ready ? 'hidden' : ''; ?>>La edición manual está disponible. Para usar IA, guarda una clave y un modelo en <a href="#cptai-settings" class="cptai-settings-link">Ajustes</a>.</p>
+                <p class="cptai-hint" id="cptai-connection-hint" <?php echo $ready ? 'hidden' : ''; ?>>La edición manual está disponible. Configura una conexión y un modelo en <a href="#cptai-settings" class="cptai-settings-link">Ajustes</a> para usar IA.</p>
                 <p id="cptai-status" role="status" aria-live="polite"></p>
             </div>
         </section>
@@ -70,7 +71,7 @@ $ready = '' !== CPTAI_Settings::key( $settings['provider'] ) && '' !== $settings
         </section>
 
         <details class="cptai-settings" id="cptai-settings" <?php echo $target ? '' : 'open'; ?>>
-            <summary>Idiomas y conexión API</summary>
+            <summary>Idiomas y conexiones de IA</summary>
             <form id="cptai-settings-form" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post">
                 <input type="hidden" name="action" value="cptai_settings"><?php wp_nonce_field( 'cptai_settings' ); ?>
                 <div class="cptai-settings-grid">
@@ -84,7 +85,7 @@ $ready = '' !== CPTAI_Settings::key( $settings['provider'] ) && '' !== $settings
                         <h3>Selector y captura</h3>
                         <div class="cptai-setting-field"><label class="cptai-check"><input type="checkbox" name="footer" value="1" <?php checked( $settings['footer'] ); ?>> Mostrar el selector al pie de las páginas</label><p class="cptai-hint">En Elementor, arrastra <strong>CPT AI · Selector de idiomas</strong>. Recoge los idiomas activados aquí y permite elegir banderas, nombres o iniciales y configurar su estilo.</p></div>
                         <div class="cptai-setting-field"><label class="cptai-check"><input type="checkbox" name="capture_gettext" value="1" <?php checked( $settings['capture_gettext'] ); ?>> Incluir cadenas internas de WordPress y plugins</label><p class="cptai-hint">Captura mensajes localizados aunque no se muestren en la página. Puede añadir muchas cadenas; actívalo si falta un mensaje con marcadores.</p></div>
-                        <div class="cptai-setting-field"><label for="cptai-provider">Proveedor para las sugerencias de IA</label><select id="cptai-provider" name="provider"><option value="openai" <?php selected( $settings['provider'], 'openai' ); ?>>OpenAI (ChatGPT)</option><option value="claude" <?php selected( $settings['provider'], 'claude' ); ?>>Anthropic (Claude)</option></select></div>
+                        <div class="cptai-setting-field"><label for="cptai-provider">Conexión para las sugerencias de IA</label><select id="cptai-provider" name="provider"><option value="openai" <?php selected( $settings['provider'], 'openai' ); ?>>OpenAI · API</option><option value="claude" <?php selected( $settings['provider'], 'claude' ); ?>>Claude · API</option><option value="chatgpt" <?php selected( $settings['provider'], 'chatgpt' ); ?>>ChatGPT · Mi plan (experimental)</option></select></div>
                     </section>
                     <?php foreach ( array( 'openai' => 'OpenAI', 'claude' => 'Claude' ) as $provider => $label ) : ?>
                     <section class="cptai-setting-card">
@@ -103,8 +104,37 @@ $ready = '' !== CPTAI_Settings::key( $settings['provider'] ) && '' !== $settings
                         </div>
                     </section>
                     <?php endforeach; ?>
+                    <section class="cptai-setting-card" id="cptai-plan-card">
+                        <h3>ChatGPT · Mi plan <span class="cptai-version">Experimental</span></h3>
+                        <p class="cptai-hint">Vincula esta web a tu cuenta elegible de ChatGPT Plus o Pro. Las peticiones comparten los límites y créditos disponibles de tu plan. No cambia a la API de pago si el plan falla.</p>
+                        <ol class="cptai-plan-steps">
+                            <li>Descarga el asistente de esta web y extrae el ZIP.</li>
+                            <li>Abre <strong>Conectar-ChatGPT.cmd</strong> en Windows. En macOS/Linux, ejecuta <code>node cptai-companion.cjs</code>. Requiere Node.js 22 o posterior.</li>
+                            <li>Continúa con ChatGPT en la página oficial de OpenAI y autoriza el uso del plan. Mantén el asistente abierto mientras traduces.</li>
+                            <li>Selecciona esta conexión, consulta los modelos y guarda el elegido.</li>
+                        </ol>
+                        <div class="cptai-plan-actions">
+                            <a class="cptai-button" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=cptai_plan_download' ), 'cptai_plan_download' ) ); ?>" id="cptai-plan-download">Descargar asistente y vincular</a>
+                            <button type="button" class="cptai-button" id="cptai-plan-disconnect" <?php disabled( ! $plan_status['linked'] ); ?>>Desvincular esta web</button>
+                        </div>
+                        <p class="cptai-hint">Una nueva descarga sustituye la vinculación anterior. Guarda el ZIP en privado: incluye acceso limitado a los trabajos de traducción de esta web. Tu sesión de OpenAI permanece en tu ordenador.</p>
+                        <p id="cptai-plan-status" class="cptai-plan-state" role="status" aria-live="polite"><?php echo $plan_status['online'] ? 'Asistente conectado' : ( $plan_status['linked'] ? 'Web vinculada · Abre el asistente' : 'Sin vincular' ); ?></p>
+                        <div class="cptai-setting-field">
+                            <label for="cptai-chatgpt-model">Modelo del plan de ChatGPT</label>
+                            <div class="cptai-model-row"><input type="text" id="cptai-chatgpt-model" name="chatgpt_model" value="<?php echo esc_attr( $settings['chatgpt_model'] ); ?>" list="cptai-chatgpt-models" placeholder="Consulta los modelos con el asistente abierto"><button type="button" class="cptai-button cptai-models" data-provider="chatgpt">Consultar modelos</button></div>
+                            <datalist id="cptai-chatgpt-models"></datalist>
+                            <p class="cptai-hint">La disponibilidad la decide OpenAI. El estado conectado confirma la sesión; una traducción completada confirma acceso al modelo.</p>
+                        </div>
+                    </section>
+                    <section class="cptai-setting-card">
+                        <h3>Cómo se usa esta conexión</h3>
+                        <p>Solo se envían las cadenas al pulsar <strong>Sugerir con IA</strong> o <strong>Traducir pendientes con IA</strong>. Los textos ya guardados se muestran sin volver a consultar a ChatGPT.</p>
+                        <p class="cptai-hint">En cada WordPress descarga su propio asistente. Puedes conectar la cuenta del responsable de esa web. El asistente no recibe tus claves API ni acceso al resto de WordPress.</p>
+                        <p class="cptai-hint">Pulsa Ctrl+C en el asistente para cerrar y revocar la sesión de OpenAI. Si cierras la ventana directamente, puedes revocar el acceso en los ajustes de ChatGPT. Desvincular aquí cancela el acceso de este asistente a esta web.</p>
+                        <a class="cptai-button" href="https://chatgpt.com/#settings/Usage" target="_blank" rel="noopener noreferrer">Gestionar uso en ChatGPT</a>
+                    </section>
                 </div>
-                <div class="cptai-settings-footer"><button type="submit" class="cptai-button cptai-button-primary">Guardar ajustes</button><p class="cptai-hint">La IA es opcional. Solo envía cadenas al proveedor al pulsar sus botones y puede generar costes en tu cuenta API.</p></div>
+                <div class="cptai-settings-footer"><button type="submit" class="cptai-button cptai-button-primary">Guardar ajustes</button><p class="cptai-hint">La IA es opcional. La conexión API tiene facturación propia; la conexión al plan comparte su uso y créditos. Las claves API guardadas se conservan al cambiar de conexión.</p></div>
             </form>
         </details>
     </div>

@@ -47,6 +47,28 @@ El widget usa banderas SVG locales de flag-icons 7.5.0, bajo licencia MIT, inclu
 
 ## IA opcional
 
+### ChatGPT · Mi plan (experimental, 1.4.0)
+
+La conexión al plan se añade a las conexiones API existentes. El inicio de sesión oficial para clientes abiertos utiliza una recepción local en `127.0.0.1`; por eso esta versión incluye un asistente que corre en el ordenador del administrador. No necesita copiar una clave API ni leer sesiones de Codex/ChatGPT. La elegibilidad del usuario y los modelos la decide OpenAI. **Conectado** significa sesión autorizada y catálogo recibido; solo una traducción completada demuestra acceso al modelo para esa petición.
+
+1. En **CPT AI → Ajustes → ChatGPT · Mi plan**, pulsa **Descargar asistente y vincular**. Cada web descarga un ZIP diferente; una nueva descarga invalida su vinculación anterior. WordPress necesita HTTPS y la extensión PHP Zip, salvo en instalaciones locales HTTP.
+2. Extrae el ZIP en una carpeta privada de tu ordenador. Incluye `cptai-connection.json`: no lo compartas. Es una vinculación limitada a recibir/responder trabajos de traducción de esa web, no una sesión de OpenAI ni una cuenta de administrador.
+3. Requiere **Node.js 22 o posterior**. En Windows abre **Conectar-ChatGPT.cmd**; detecta Node instalado o el runtime local de Codex. En macOS/Linux ejecuta `node cptai-companion.cjs`. No se instala Node automáticamente.
+4. Inicia sesión y autoriza el plan en la página oficial de OpenAI. El asistente comprueba firma, emisor, destinatario, caducidad, nonce y permisos. Si ya hay registros locales, permite elegir una cuenta previa o conectar otra; cada registro conserva su cuenta/espacio de trabajo y su identificador de cliente.
+5. Mantén el asistente abierto. En WordPress selecciona **ChatGPT · Mi plan (experimental)** como conexión, consulta los modelos, elige uno y guarda.
+6. Usa **Sugerir con IA** o **Traducir pendientes con IA**. El primero devuelve una propuesta para revisar y guardar; el segundo guarda únicamente pendientes y conserva las ediciones manuales hechas durante la petición. No hay inferencia por visitas ni por conectar/consultar modelos.
+7. Pulsa **Ctrl+C** para intentar revocar la sesión y cerrar el asistente. Si cierras la ventana abruptamente, revoca la aplicación en ChatGPT. **Desvincular esta web** cancela los trabajos y la credencial del asistente de esa web, sin borrar las claves API ni revocar por sí mismo la autorización de OpenAI.
+
+Las traducciones comparten el uso y los créditos disponibles del plan autorizado; no crean una cuota nueva por web. Ante un límite, falta de acceso, modelo incompatible o sesión caducada, se muestra el error y **no se cambia automáticamente a una API de pago**. Puedes elegir manualmente cualquiera de las conexiones API que ya tenías.
+
+Las credenciales OAuth permanecen en memoria en el ordenador. Solo se persisten los metadatos públicos de registro (cliente, cuenta, correo e identificador del equipo) en `CreativePearTranslateAI` dentro de la carpeta de datos locales del usuario. No se guardan tokens OAuth en WordPress, navegador, archivos de perfil ni logs. WordPress conserva únicamente un hash de la vinculación limitada, nombre de cuenta, catálogo y trabajos temporales. Las respuestas deben preservar marcadores, cifras de fechas y texto plano.
+
+El asistente escucha el inicio de sesión exclusivamente en un puerto temporal de `127.0.0.1`. Luego consulta WordPress por HTTPS. La cola se reclama una sola vez, expira y vincula resultados al administrador, idioma y conexión original; las entregas repetidas no generan otra traducción ni avanzan dos veces un lote. Heartbeats mantienen el estado mientras se procesa un lote. El asistente usa Responses con streaming y confirma `response.completed` antes de aceptar el resultado.
+
+Documentación oficial: [registro y autorización](https://developers.openai.com/siwc/token-sharing-open-source/sign-in), [modelos e inferencia](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference), [límites actuales](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations).
+
+### Claves API de OpenAI y Claude
+
 Introduce una clave de OpenAI o Anthropic en WordPress, guarda y pulsa **Consultar modelos**. Selecciona un modelo con generación de texto y guarda de nuevo. No se usan credenciales de ChatGPT/Claude en el navegador: son las APIs de cada proveedor, con su propia cuenta y facturación.
 
 **Sugerir con IA** prepara una propuesta para una sola cadena; revísala y guarda. **Traducir pendientes con IA** procesa las cadenas sin traducción de la última página leída, en lotes de hasta diez. No sobrescribe las traducciones existentes. Puedes detenerlo entre lotes; lo ya guardado se conserva. Un fallo no guarda la respuesta inválida y permite reintentar. Si la sesión caduca, vuelve a leer la página para recuperar los pendientes.

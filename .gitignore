@@ -1,4 +1,5 @@
 .env*
+cptai-connection.json
 *.zip
 build/
 .idea/

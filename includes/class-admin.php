@@ -11,12 +11,12 @@ final class CPTAI_Admin {
                 wp_enqueue_style( 'cptai-admin', plugins_url( 'assets/admin.css', CPTAI_FILE ), array(), CPTAI_VERSION );
                 wp_enqueue_script( 'cptai-admin', plugins_url( 'assets/admin.js', CPTAI_FILE ), array(), CPTAI_VERSION, true );
                 $settings = CPTAI_Settings::get();
-                wp_add_inline_script( 'cptai-admin', 'window.CPTAIAdmin=' . wp_json_encode( array( 'ajax' => admin_url( 'admin-ajax.php' ), 'nonce' => wp_create_nonce( 'cptai_admin' ), 'languages' => CPTAI_Settings::languages(), 'source' => $settings['source'], 'targets' => $settings['targets'], 'ready' => '' !== CPTAI_Settings::key( $settings['provider'] ) && '' !== $settings[ $settings['provider'] . '_model' ] ) ) . ';', 'before' );
+                wp_add_inline_script( 'cptai-admin', 'window.CPTAIAdmin=' . wp_json_encode( array( 'ajax' => admin_url( 'admin-ajax.php' ), 'nonce' => wp_create_nonce( 'cptai_admin' ), 'languages' => CPTAI_Settings::languages(), 'source' => $settings['source'], 'targets' => $settings['targets'], 'provider' => $settings['provider'], 'ready' => CPTAI_Settings::ready() ) ) . ';', 'before' );
             }
         } );
         add_action( 'admin_post_cptai_settings', array( self::class, 'save_settings' ) );
         add_action( 'admin_post_cptai_edit', array( self::class, 'edit' ) );
-        foreach ( array( 'models', 'prepare', 'batch', 'capture', 'scan_link', 'row', 'save_string', 'save_settings_ajax', 'dictionary', 'add_string' ) as $action ) {
+        foreach ( array( 'models', 'prepare', 'batch', 'capture', 'scan_link', 'row', 'save_string', 'save_settings_ajax', 'dictionary', 'add_string', 'plan_status', 'plan_disconnect', 'plan_result' ) as $action ) {
             add_action( 'wp_ajax_cptai_' . $action, array( self::class, $action ) );
         }
     }
@@ -79,8 +79,24 @@ final class CPTAI_Admin {
 
     public static function models(): void {
         self::permission();
-        $provider = 'claude' === ( $_POST['provider'] ?? '' ) ? 'claude' : 'openai';
+        $provider = in_array( $_POST['provider'] ?? '', array( 'openai', 'claude', 'chatgpt' ), true ) ? $_POST['provider'] : 'openai';
         self::result( CPTAI_Provider::models( $provider ) );
+    }
+
+    public static function plan_status(): void {
+        self::permission();
+        self::result( array_merge( CPTAI_Plan::status(), array( 'ready' => CPTAI_Settings::ready() ) ) );
+    }
+
+    public static function plan_disconnect(): void {
+        self::permission();
+        CPTAI_Plan::disconnect();
+        self::result( array( 'disconnected' => true ) );
+    }
+
+    public static function plan_result(): void {
+        self::permission();
+        self::result( CPTAI_Plan::result( is_string( $_POST['ticket'] ?? null ) ? $_POST['ticket'] : '' ) );
     }
 
     public static function scan_link(): void {
@@ -174,17 +190,30 @@ final class CPTAI_Admin {
                 $strings[] = $string;
             }
             if ( $strings ) {
-                $translated = CPTAI_Provider::translate( $strings, $job['source'], $job['target'] );
-                if ( is_wp_error( $translated ) ) {
-                    $result = $translated;
-                } else {
-                    foreach ( $strings as $i => $original ) {
-                        // Preserve manual edits or translations made since the scan.
-                        if ( ! CPTAI_Store::fill( $original, $translated[ $i ], $job['source'], $job['target'] ) ) {
-                            throw new RuntimeException( 'No se pudo guardar la traducción.' );
-                        }
+                if ( 'chatgpt' === CPTAI_Settings::get()['provider'] ) {
+                    if ( ! empty( $job['plan_ticket'] ) ) {
+                        $queued = get_transient( 'cptai_plan_' . $job['plan_ticket'] );
+                        if ( ! $queued || $queued['expires'] < time() ) { unset( $job['plan_ticket'] ); }
                     }
-                    $job['offset'] += count( $strings );
+                    if ( ! empty( $job['plan_ticket'] ) ) {
+                        $result = array( 'plan_ticket' => $job['plan_ticket'] );
+                    } else {
+                        $result = CPTAI_Plan::enqueue( $strings, $job['source'], $job['target'], array( 'kind' => 'batch', 'batch' => $id, 'offset' => $job['offset'] ) );
+                        if ( ! is_wp_error( $result ) ) { $job['plan_ticket'] = $result['plan_ticket']; set_transient( 'cptai_job_' . $id, $job, HOUR_IN_SECONDS ); }
+                    }
+                } else {
+                    $translated = CPTAI_Provider::translate( $strings, $job['source'], $job['target'] );
+                    if ( is_wp_error( $translated ) ) {
+                        $result = $translated;
+                    } else {
+                        foreach ( $strings as $i => $original ) {
+                            // Preserve manual edits or translations made since the scan.
+                            if ( ! CPTAI_Store::fill( $original, $translated[ $i ], $job['source'], $job['target'] ) ) {
+                                throw new RuntimeException( 'No se pudo guardar la traducción.' );
+                            }
+                        }
+                        $job['offset'] += count( $strings );
+                    }
                 }
             }
             if ( ! $result ) {
@@ -205,6 +234,9 @@ final class CPTAI_Admin {
         $row = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . CPTAI_Store::table() . ' WHERE id=%d', absint( $_POST['id'] ?? 0 ) ) );
         if ( ! $row || $row->source_lang !== CPTAI_Settings::get()['source'] || ! in_array( $row->target_lang, CPTAI_Settings::get()['targets'], true ) ) {
             self::result( new WP_Error( 'row', 'La cadena ya no está disponible para los idiomas activos.' ) );
+        }
+        if ( 'chatgpt' === CPTAI_Settings::get()['provider'] ) {
+            self::result( CPTAI_Plan::enqueue( array( $row->original ), $row->source_lang, $row->target_lang, array( 'kind' => 'row', 'row' => (int) $row->id ) ) );
         }
         $translated = CPTAI_Provider::translate( array( $row->original ), $row->source_lang, $row->target_lang );
         if ( is_wp_error( $translated ) ) {
@@ -242,8 +274,9 @@ final class CPTAI_Admin {
             self::result( $result );
         }
         $settings = CPTAI_Settings::get();
-        $public = array_intersect_key( $settings, array_flip( array( 'source', 'targets', 'provider', 'openai_model', 'claude_model', 'footer', 'capture_gettext' ) ) );
+        $public = array_intersect_key( $settings, array_flip( array( 'source', 'targets', 'provider', 'openai_model', 'claude_model', 'chatgpt_model', 'footer', 'capture_gettext' ) ) );
         $public['keys'] = array( 'openai' => '' !== CPTAI_Settings::key( 'openai' ), 'claude' => '' !== CPTAI_Settings::key( 'claude' ) );
+        $public['ready'] = CPTAI_Settings::ready();
         self::result( $public );
     }
 
@@ -348,7 +381,7 @@ final class CPTAI_Admin {
         $total = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . CPTAI_Store::table() . ' WHERE ' . $where );
         $page = min( $page, max( 1, (int) ceil( $total / 30 ) ) );
         $rows = $wpdb->get_results( 'SELECT * FROM ' . CPTAI_Store::table() . ' WHERE ' . $where . ' ORDER BY ' . $order . $wpdb->prepare( ' LIMIT 30 OFFSET %d', ( $page - 1 ) * 30 ) );
-        $ready = '' !== CPTAI_Settings::key( $settings['provider'] ) && '' !== $settings[ $settings['provider'] . '_model' ];
+        $ready = CPTAI_Settings::ready();
         $pagination_base = add_query_arg( array( 'page' => 'creative-pear-translate-ai', 'target' => $target, 's' => $search, 'pending' => $pending ? 1 : 0, 'sort' => $sort, 'paged' => '%#%' ), admin_url( 'admin.php' ) );
         return compact( 'settings', 'languages', 'target', 'search', 'pending', 'sort_options', 'sort', 'page', 'total', 'rows', 'ready', 'pagination_base' );
     }

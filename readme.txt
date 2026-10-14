@@ -3,11 +3,11 @@ Contributors: xavileaks
 Tags: translation, multilingual, openai, claude
 Requires at least: 6.4
 Requires PHP: 8.1
-Stable tag: 1.3.0
+Stable tag: 1.4.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Diccionario compartido de cadenas con edición desde WordPress y traducción opcional mediante tu API de OpenAI o Claude.
+Diccionario compartido de cadenas con edición desde WordPress, APIs opcionales de OpenAI/Claude y conexión experimental al plan de ChatGPT mediante un asistente local.
 
 == Installation ==
 1. Instala creative-pear-translate-ai.zip desde Plugins > Añadir plugin > Subir plugin.
@@ -21,6 +21,13 @@ Diccionario compartido de cadenas con edición desde WordPress y traducción opc
 == External services ==
 Las conexiones de IA son opcionales y se realizan solo al pulsar Consultar modelos, Sugerir con IA o Traducir pendientes con IA. Se envía la clave API únicamente al proveedor correspondiente; al traducir se envían las cadenas, idiomas y modelo. No se envía el HTML completo, cookies, contraseñas ni información de pedidos. Las visitas normales y la captura no llaman a APIs de IA. Cada proveedor puede aplicar cargos y sus propias condiciones.
 
+ChatGPT - Mi plan (experimental): un asistente local de código abierto completa OAuth en auth.openai.com, valida identidad y permisos, consulta modelos y procesa las traducciones solicitadas desde WordPress. Requiere Node.js 22+ y una cuenta elegible autorizada por OpenAI. Debe permanecer abierto mientras se traduce. Los tokens de OpenAI se mantienen solo en memoria en el ordenador; WordPress recibe únicamente el nombre de cuenta, catálogo de modelos y respuestas de los trabajos solicitados. El plan comparte sus límites y créditos. No cambia automáticamente a una API de pago. Las dos conexiones API se conservan.
+
+Descarga el asistente desde CPT AI > Ajustes > ChatGPT - Mi plan, extrae el ZIP y abre Conectar-ChatGPT.cmd (Windows) o ejecuta node cptai-companion.cjs (macOS/Linux). Cada descarga incluye una vinculación privada limitada a los trabajos de esta web y revoca la vinculación anterior. La web debe usar HTTPS salvo en localhost. Ctrl+C intenta revocar la sesión de OpenAI; si cierras la ventana directamente, revócala en ChatGPT. Desvincular en WordPress cancela solo el acceso del asistente a esta web.
+
+OpenAI OAuth: https://auth.openai.com
+Documentación: https://developers.openai.com/siwc/token-sharing-open-source
+
 OpenAI: https://api.openai.com/v1/responses y https://api.openai.com/v1/models
 Condiciones: https://openai.com/policies/terms-of-use/
 Privacidad: https://openai.com/policies/privacy-policy/
@@ -29,6 +36,11 @@ Condiciones: https://www.anthropic.com/legal/commercial-terms
 Privacidad: https://www.anthropic.com/legal/privacy
 
 == Changelog ==
+
+= 1.4.0 =
+* Conexión experimental al plan de ChatGPT mediante un asistente local de código abierto, con OAuth oficial, PKCE y validación de identidad.
+* Cada web se vincula de forma independiente; las peticiones se resuelven por AJAX sin bloquear WordPress ni enviar tokens de OpenAI al servidor.
+* Se mantienen las conexiones por API de OpenAI y Claude. Sin cambio automático a facturación API cuando el plan falla.
 = 1.3.0 =
 * Meses y días de semana automáticos, mayúsculas/minúsculas y fechas dinámicas, sin llamadas a IA.
 * Conservación de día/año/hora y protección frente a correcciones antiguas que eliminaban cifras.

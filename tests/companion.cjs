@@ -1,0 +1,99 @@
+'use strict';
+const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
+const {Readable} = require('node:stream');
+const {validateConnection, endpointFor, validateIdentity, validateGrant, validateJob, translationPayload, parseStream, errorCode, callbackListener, authorize, refresh} = require('../companion/cptai-companion.cjs');
+let checks = 0;
+function check(fn) { fn(); checks++; }
+const connection = {version:1, endpoint:'https://example.org/wp-json/cptai/v1/plan/', secret:'a'.repeat(64), installation:'12345678-1234-1234-1234-123456789abc'};
+check(() => assert.equal(validateConnection(connection).endpoint, connection.endpoint));
+check(() => assert.equal(endpointFor(connection, 'poll'), connection.endpoint + 'poll'));
+const plain = {...connection, endpoint:'https://example.org/?rest_route=/cptai/v1/plan/'};
+check(() => assert.equal(new URL(endpointFor(plain, 'poll')).searchParams.get('rest_route'), '/cptai/v1/plan/poll'));
+for (const endpoint of ['http://example.org/wp-json/cptai/v1/plan/', 'https://user:pass@example.org/wp-json/cptai/v1/plan/', 'file:///tmp/cptai/v1/plan/', 'https://example.org/other/']) check(() => assert.throws(() => validateConnection({...connection, endpoint})));
+check(() => assert.doesNotThrow(() => validateConnection({...connection, endpoint:'http://127.0.0.1:8764/wp-json/cptai/v1/plan/'})));
+check(() => assert.throws(() => validateConnection({...connection, secret:'invalid'})));
+const {publicKey, privateKey} = crypto.generateKeyPairSync('rsa', {modulusLength:2048});
+const jwk = {...publicKey.export({format:'jwk'}), kid:'test', alg:'RS256', use:'sig'};
+const claims = {iss:'https://auth.openai.com', aud:'oaiapp_test', sub:'test-user', exp:2000, nonce:'nonce', email:'fake@example.invalid'};
+const sign = (values, header = {alg:'RS256', kid:'test'}) => {
+  const data = [header, values].map(value => Buffer.from(JSON.stringify(value)).toString('base64url')).join('.');
+  return data + '.' + crypto.sign('RSA-SHA256', Buffer.from(data), privateKey).toString('base64url');
+};
+const verifyOptions = {clientId:'oaiapp_test', nonce:'nonce', subject:'test-user', now:1000};
+check(() => assert.equal(validateIdentity(sign(claims), {keys:[jwk]}, verifyOptions).sub, 'test-user'));
+for (const extra of [{iss:'https://evil.invalid'}, {aud:'wrong'}, {sub:'another'}, {nonce:'wrong'}, {exp:999}, {nbf:2000}, {aud:['oaiapp_test','another']}, {sub:''}]) check(() => assert.throws(() => validateIdentity(sign({...claims,...extra}), {keys:[jwk]}, verifyOptions)));
+check(() => assert.throws(() => validateIdentity(sign(claims, {alg:'none', kid:'test'}), {keys:[jwk]}, verifyOptions)));
+check(() => assert.throws(() => validateIdentity(sign(claims), {keys:[]}, verifyOptions)));
+check(() => assert.throws(() => validateIdentity(sign(claims).replace(/.$/, '!'), {keys:[jwk]}, verifyOptions)));
+const grant = {scope:'openid profile resource.invoke chatgpt.tokens.use.direct', token_type:'Bearer', access_token:'fake-access', refresh_token:'fake-refresh', expires_in:3600};
+check(() => assert.doesNotThrow(() => validateGrant(grant)));
+for (const extra of [{scope:'openid profile'}, {refresh_token:''}, {access_token:''}, {expires_in:0}, {token_type:'Basic'}]) check(() => assert.throws(() => validateGrant({...grant, ...extra})));
+const job = {id:'b'.repeat(32), model:'test-model', source:'en', target:'es', strings:['Send %s']};
+check(() => assert.doesNotThrow(() => validateJob(job, ['test-model'])));
+for (const extra of [{model:'other'}, {source:'bad'}, {target:'en'}, {strings:['<script>']}, {strings:['x'.repeat(3501)]}, {strings:[]}, {strings:Array(11).fill('Test')}, {strings:[123]}]) check(() => assert.throws(() => validateJob({...job,...extra}, ['test-model'])));
+const payload = translationPayload(job);
+check(() => assert.equal(payload.stream, true));
+check(() => assert.equal(payload.store, false));
+check(() => assert.ok(Array.isArray(payload.input)));
+check(() => assert.equal(payload.input[0].content, JSON.stringify(job.strings)));
+for (const field of ['max_output_tokens','temperature','previous_response_id','background','tools']) check(() => assert.equal(payload[field], undefined));
+check(() => assert.equal(errorCode(403, {error:{code:'subscription_sharing_user_not_eligible'}}), 'subscription_sharing_user_not_eligible'));
+check(() => assert.equal(errorCode(401, {error:{message:'private-secret'}}), 'auth'));
+
+(async () => {
+  const frame = event => `data: ${JSON.stringify(event)}\r\n\r\n`;
+  const done = frame({type:'response.completed', response:{status:'completed',output:[{content:[{type:'output_text',text:'["Enviar %s"]'}]}]}});
+  const bytes = Buffer.from(frame({type:'response.output_text.delta',delta:'ignored'}) + done);
+  const split = [...bytes].map(byte => Buffer.from([byte]));
+  assert.deepEqual(await parseStream(Readable.from(split)), ['Enviar %s']); checks++;
+  for (const text of [frame({type:'response.failed',response:{error:{code:'subscription_sharing_usage_limit_exceeded'}}}), frame({type:'response.incomplete'}), frame({type:'response.output_text.delta',delta:'partial'}), done.replace('Enviar %s', 'broken\\"')]) {
+    await assert.rejects(() => parseStream(Readable.from([Buffer.from(text)]))); checks++;
+  }
+  const listener = await callbackListener('valid-state', 4000);
+  const invalid = await fetch(listener.redirect + '?state=wrong&code=fake');
+  check(() => assert.equal(invalid.status, 400));
+  const pending = listener.callback;
+  await fetch(listener.redirect + '?state=valid-state&code=fake-code&client_id=oaiapp_test');
+  const result = await pending;
+  check(() => assert.equal(result.code, 'fake-code'));
+  listener.close();
+
+  // Complete an OAuth exchange against a deterministic fake transport, real loopback and real RSA signatures.
+  const originalFetch = global.fetch;
+  let authUrl, posted;
+  const mock = async (url, options = {}) => {
+    const href = String(url);
+    if (href.startsWith('http://127.0.0.1:')) return originalFetch(url, options);
+    if (href.endsWith('openid-configuration')) return Response.json({issuer:'https://auth.openai.com', authorization_endpoint:'https://auth.openai.com/api/accounts/authorize', token_endpoint:'https://auth.openai.com/api/accounts/oauth/token', jwks_uri:'https://auth.openai.com/.well-known/jwks.json'});
+    if (href.endsWith('/jwks.json')) return Response.json({keys:[jwk]});
+    if (href.endsWith('/oauth/token')) {
+      posted = new URLSearchParams(options.body);
+      return Response.json({...grant, id_token:sign({...claims, nonce:authUrl.searchParams.get('nonce'), exp:Math.floor(Date.now()/1000)+3600})});
+    }
+    throw new Error('Unexpected test request');
+  };
+  global.fetch = mock;
+  try {
+    const session = await authorize(undefined, 'urn:uuid:12345678-1234-1234-1234-123456789abc', url => {
+      authUrl = new URL(url);
+      const callback = new URL(authUrl.searchParams.get('redirect_uri'));
+      callback.searchParams.set('state', authUrl.searchParams.get('state')); callback.searchParams.set('code','fake-code'); callback.searchParams.set('client_id','oaiapp_test');
+      originalFetch(callback).catch(() => {});
+    });
+    check(() => assert.equal(session.subject, 'test-user'));
+    check(() => assert.equal(authUrl.searchParams.get('client_id'), 'dynamic_agent_client'));
+    check(() => assert.equal(authUrl.searchParams.get('agent_name_hint'), 'Creative Pear Translate AI'));
+    check(() => assert.equal(posted.get('client_id'), 'oaiapp_test'));
+    check(() => assert.equal(posted.get('redirect_uri'), authUrl.searchParams.get('redirect_uri')));
+    check(() => assert.equal(crypto.createHash('sha256').update(posted.get('code_verifier')).digest('base64url'), authUrl.searchParams.get('code_challenge')));
+    check(() => assert.equal(posted.has('client_secret'), false));
+    check(() => assert.equal(authUrl.searchParams.has('access_token'), false));
+    session.expires = 0;
+    await refresh(session);
+    check(() => assert.equal(posted.get('grant_type'), 'refresh_token'));
+    check(() => assert.equal(posted.get('client_id'), 'oaiapp_test'));
+    check(() => assert.equal(posted.has('scope'), false));
+  } finally { global.fetch = originalFetch; }
+  console.log(`PASS: ${checks} companion checks; no real OpenAI requests or credentials.`);
+})().catch(error => { console.error(error); process.exitCode = 1; });

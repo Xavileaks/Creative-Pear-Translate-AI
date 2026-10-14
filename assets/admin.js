@@ -17,7 +17,7 @@
     if (!error) toastTimer = setTimeout(() => { toastBox.hidden = true; }, 4500);
   }
   document.getElementById('cptai-toast-close').addEventListener('click', () => { toastBox.hidden = true; });
-  async function request(action, values = {}, signal) {
+  async function request(action, values = {}, signal, resolvePlan = true) {
     const body = values instanceof FormData ? new FormData() : new URLSearchParams(values);
     if (values instanceof FormData) for (const [key, value] of values) body.append(key, value);
     body.set('action', `cptai_${action}`);
@@ -27,6 +27,16 @@
     try { result = await response.json(); }
     catch { throw new Error('La respuesta no es válida. Tu edición se conserva; recarga para renovar la sesión si el problema continúa.'); }
     if (!result.success) throw new Error(result.data?.message || 'No se pudo completar la petición. Tu edición se conserva.');
+    if (resolvePlan && result.data?.plan_ticket) {
+      const ticket = result.data.plan_ticket;
+      const deadline = Date.now() + 155000;
+      while (Date.now() < deadline) {
+        await new Promise(resolve => setTimeout(resolve, 1100));
+        const next = await request('plan_result', {ticket}, signal, false);
+        if (!next.plan_waiting) return next;
+      }
+      throw new Error('La petición al plan caducó. Comprueba que el asistente sigue abierto.');
+    }
     return result.data;
   }
   const snapshot = data => JSON.stringify([...data].sort((a, b) => a[0].localeCompare(b[0]) || String(a[1]).localeCompare(String(b[1]))));
@@ -220,6 +230,8 @@
       }
       expected.set('source', saved.source);
       expected.set('provider', saved.provider);
+      expected.set('chatgpt_model', saved.chatgpt_model);
+      if (settingsForm.elements.chatgpt_model.value === submitted.get('chatgpt_model')) settingsForm.elements.chatgpt_model.value = saved.chatgpt_model;
       expected.delete('targets[]');
       for (const target of saved.targets) expected.append('targets[]', target);
       for (const checkbox of settingsForm.querySelectorAll('[name="targets[]"]')) {
@@ -248,7 +260,8 @@
         document.getElementById('cptai-ai').disabled = true;
         message('Idiomas guardados. Actualiza el diccionario para cargar las cadenas correspondientes.');
       }
-      config.ready = Boolean(saved.keys[saved.provider] && saved[`${saved.provider}_model`]);
+      config.provider = saved.provider;
+      config.ready = Boolean(saved.ready);
       document.getElementById('cptai-connection-hint').hidden = config.ready;
       for (const row of rows.values()) row.form.querySelector('.cptai-row').disabled = row.suggesting || !config.ready;
       toast('Ajustes guardados.');
@@ -256,6 +269,45 @@
     finally { settingsSaving = false; settingsUpdate(); }
   });
   settingsUpdate();
+  function updateReady(ready) {
+    config.ready = Boolean(ready);
+    document.getElementById('cptai-connection-hint').hidden = config.ready;
+    for (const row of rows.values()) row.form.querySelector('.cptai-row').disabled = row.suggesting || !config.ready;
+    if (!running && job) document.getElementById('cptai-ai').disabled = !job.pending || !config.ready;
+  }
+  const planState = document.getElementById('cptai-plan-status');
+  const planDisconnect = document.getElementById('cptai-plan-disconnect');
+  let checkingPlan = false;
+  let planRevision = 0;
+  async function checkPlan() {
+    if (checkingPlan || document.hidden) return;
+    checkingPlan = true;
+    const revision = planRevision;
+    try {
+      const state = await request('plan_status');
+      if (revision !== planRevision) return;
+      planState.textContent = state.online ? `Asistente conectado${state.account ? ` · ${state.account}` : ''}` : state.linked ? 'Web vinculada · Abre el asistente' : 'Sin vincular';
+      planState.classList.toggle('is-online', state.online);
+      planDisconnect.disabled = !state.linked;
+      if (config.provider === 'chatgpt') updateReady(state.ready);
+    } catch { planState.textContent = 'No se pudo comprobar la conexión. Revisa tu sesión de WordPress.'; }
+    finally { checkingPlan = false; }
+  }
+  planDisconnect.addEventListener('click', async () => {
+    planDisconnect.disabled = true;
+    try {
+      await request('plan_disconnect');
+      planRevision++;
+      planState.textContent = 'Sin vincular';
+      planState.classList.remove('is-online');
+      if (config.provider === 'chatgpt') updateReady(false);
+      toast('Esta web se ha desvinculado. Las claves API se conservan.');
+    }
+    catch (error) { toast(error.message, true); }
+    await checkPlan();
+  });
+  checkPlan();
+  setInterval(checkPlan, 6000);
   window.addEventListener('beforeunload', event => {
     if (adding || addDirty() || dirtyRows().length || [...rows.values()].some(row => row.saving || row.suggesting) || snapshot(new FormData(settingsForm)) !== settingsBaseline) {
       event.preventDefault(); event.returnValue = '';
@@ -311,8 +363,9 @@
     let complete = false;
     try {
       while (!stopped) {
-        message('Traduciendo con la API…');
+        message(config.provider === 'chatgpt' ? 'Traduciendo con tu plan de ChatGPT… Mantén el asistente abierto.' : 'Traduciendo con la API…');
         const result = await request('batch', {job: job.job});
+        job.pending = Math.max(0, result.total - result.done);
         message(`${result.done} de ${result.total} cadenas pendientes traducidas.`);
         if (result.complete) { complete = true; message('Traducciones guardadas. Actualiza el diccionario para revisarlas.'); toast('Traducciones guardadas.'); break; }
       }

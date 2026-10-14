@@ -9,11 +9,21 @@ final class CPTAI_Settings {
     public static function get(): array {
         $locale = substr( get_locale(), 0, 2 );
         return wp_parse_args( get_option( 'cptai_settings', array() ), array(
-            'provider' => 'openai', 'openai_model' => '', 'claude_model' => '',
+            'provider' => 'openai', 'openai_model' => '', 'claude_model' => '', 'chatgpt_model' => '',
             'source' => isset( self::languages()[ $locale ] ) ? $locale : 'es',
             'targets' => array( 'en' ), 'footer' => false, 'capture_gettext' => false,
             'openai_key' => '', 'claude_key' => '',
         ) );
+    }
+
+    public static function ready(): bool {
+        $settings = self::get();
+        if ( 'chatgpt' === $settings['provider'] ) {
+            if ( ! class_exists( 'CPTAI_Plan' ) ) { return false; }
+            $status = CPTAI_Plan::status();
+            return $status['online'] && in_array( $settings['chatgpt_model'], $status['models'], true );
+        }
+        return '' !== self::key( $settings['provider'] ) && '' !== $settings[ $settings['provider'] . '_model' ];
     }
 
     private static function secret(): string {
@@ -31,6 +41,7 @@ final class CPTAI_Settings {
     }
 
     public static function key( string $provider ): string {
+        if ( ! in_array( $provider, array( 'openai', 'claude' ), true ) ) { return ''; }
         $constant = 'openai' === $provider ? 'CPTAI_OPENAI_API_KEY' : 'CPTAI_CLAUDE_API_KEY';
         if ( defined( $constant ) ) {
             return trim( (string) constant( $constant ) );
@@ -52,7 +63,8 @@ final class CPTAI_Settings {
             return new WP_Error( 'source', 'Selecciona un idioma original válido.' );
         }
         $settings['source'] = $source;
-        $settings['provider'] = 'claude' === ( $input['provider'] ?? '' ) ? 'claude' : 'openai';
+        $settings['provider'] = in_array( $input['provider'] ?? '', array( 'openai', 'claude', 'chatgpt' ), true ) ? $input['provider'] : 'openai';
+        $settings['chatgpt_model'] = preg_replace( '/[^a-zA-Z0-9_.:\/-]/', '', substr( (string) ( $input['chatgpt_model'] ?? $settings['chatgpt_model'] ), 0, 120 ) );
         $settings['targets'] = array_values( array_diff( array_intersect( array_keys( $languages ), (array) ( $input['targets'] ?? array() ) ), array( $source ) ) );
         $settings['footer'] = ! empty( $input['footer'] );
         $settings['capture_gettext'] = ! empty( $input['capture_gettext'] );

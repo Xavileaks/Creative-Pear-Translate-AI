@@ -1,0 +1,37 @@
+Creative Pear Translate AI - Plan de ChatGPT (experimental)
+
+1. Extrae todos los archivos del ZIP en una carpeta privada de tu ordenador.
+2. En Windows abre Conectar-ChatGPT.cmd. Requiere Node.js 22 o posterior.
+   En macOS/Linux ejecuta: node cptai-companion.cjs
+3. Inicia sesion exclusivamente en la pagina oficial de OpenAI que se abre.
+   Autoriza el uso del plan. La disponibilidad depende de OpenAI y tu cuenta.
+4. Manten esta ventana abierta. En WordPress, elige ChatGPT - Mi plan,
+   consulta los modelos, elige uno y guarda los ajustes.
+5. Usa Sugerir con IA o Traducir pendientes con IA.
+6. Pulsa Ctrl+C para revocar la sesion y cerrar el asistente.
+
+Las conexiones API de OpenAI y Claude se conservan. Nunca se cambia a una
+API de pago automaticamente. Usar el plan comparte sus limites y creditos.
+
+Cada web descarga su propia vinculacion. No compartas cptai-connection.json:
+permite recoger y responder solo a trabajos de traduccion de esa web.
+Una nueva descarga desde WordPress invalida la vinculacion anterior.
+Desvincular en WordPress no revoca la autorizacion de OpenAI: para eso,
+usa Ctrl+C en el asistente o los ajustes de ChatGPT.
+
+Los tokens de OpenAI permanecen en memoria en tu ordenador. Solo se guarda
+el identificador de registro, el identificador del ordenador y el nombre
+de la cuenta en CreativePearTranslateAI dentro de la carpeta de datos
+locales del usuario. Nunca se leen sesiones existentes de Codex/ChatGPT.
+
+Si cierras la ventana abruptamente, no se puede confirmar la revocacion.
+Puedes desconectar la aplicacion en ChatGPT > Ajustes > Uso.
+
+El asistente no publica un servidor en internet. La recepcion de la
+autorizacion escucha un puerto temporal exclusivamente en 127.0.0.1.
+La web se consulta mediante HTTPS (HTTP solo en instalaciones locales).
+
+Codigo y licencia GPL-2.0-or-later:
+https://github.com/Xavileaks/Creative-Pear-Translate-AI
+Documentacion oficial:
+https://developers.openai.com/siwc/token-sharing-open-source
