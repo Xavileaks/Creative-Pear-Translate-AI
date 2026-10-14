@@ -4,6 +4,7 @@ Creative Pear Translate AI - Plan de ChatGPT (experimental)
 2. En Windows abre Conectar-ChatGPT.cmd. Requiere Node.js 22 o posterior.
    En macOS/Linux ejecuta: node cptai-companion.cjs
 3. Inicia sesion exclusivamente en la pagina oficial de OpenAI que se abre.
+   Tienes 15 minutos para completarla. Manten el asistente abierto.
    Autoriza el uso del plan. La disponibilidad depende de OpenAI y tu cuenta.
 4. Manten esta ventana abierta. En WordPress, elige ChatGPT - Mi plan,
    consulta los modelos, elige uno y guarda los ajustes.

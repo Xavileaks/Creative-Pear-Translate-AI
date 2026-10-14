@@ -3,7 +3,7 @@ Contributors: xavileaks
 Tags: translation, multilingual, openai, claude
 Requires at least: 6.4
 Requires PHP: 8.1
-Stable tag: 1.4.0
+Stable tag: 1.4.1
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -36,6 +36,11 @@ Condiciones: https://www.anthropic.com/legal/commercial-terms
 Privacidad: https://www.anthropic.com/legal/privacy
 
 == Changelog ==
+
+= 1.4.1 =
+* El asistente espera 15 minutos para completar el inicio de sesión en OpenAI y lo indica antes de abrir el navegador.
+* Se rechaza una devolución de autorización ya consumida.
+* Se lee el catálogo específico del plan (models/slug), incluidos catálogos grandes, y se conserva el orden indicado por OpenAI.
 
 = 1.4.0 =
 * Conexión experimental al plan de ChatGPT mediante un asistente local de código abierto, con OAuth oficial, PKCE y validación de identidad.

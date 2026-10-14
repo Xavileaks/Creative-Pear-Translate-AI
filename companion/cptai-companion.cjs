@@ -12,6 +12,7 @@ const readline = require('node:readline/promises');
 const AUTH = 'https://auth.openai.com';
 const API = 'https://api.openai.com/v1';
 const SCOPES = 'openid profile email offline_access resource.invoke chatgpt.tokens.use.direct';
+const AUTH_WAIT_MS = 15 * 60 * 1000;
 const LANGUAGES = {es:'Spanish', en:'English', ca:'Catalan', fr:'French', de:'German', it:'Italian', pt:'Portuguese', nl:'Dutch', pl:'Polish', uk:'Ukrainian', ar:'Arabic', ja:'Japanese', zh:'Chinese'};
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const base64url = value => Buffer.from(value).toString('base64url');
@@ -46,16 +47,37 @@ function errorCode(status, body) {
 }
 
 async function jsonRequest(url, options = {}, timeout = 20000) {
+  const endpoint = new URL(url);
+  const stage = endpoint.origin === AUTH ? (endpoint.pathname.endsWith('/oauth/token') ? 'intercambio de sesión' : 'verificación de OpenAI') : endpoint.origin === 'https://api.openai.com' ? 'catálogo de modelos' : 'vinculación con WordPress';
+  const limit = endpoint.origin === 'https://api.openai.com' && endpoint.pathname === '/v1/models' ? 8000000 : 400000;
   let response;
   try { response = await fetch(url, {...options, redirect: 'error', signal: AbortSignal.timeout(timeout)}); }
   catch { throw new SafeError('network', 'No se pudo contactar con el servicio.'); }
   const declared = Number(response.headers.get('content-length') || 0);
-  if (declared > 400000) throw new SafeError('format');
+  if (declared > limit) throw new SafeError('format', `La respuesta de ${stage} supera el tamaño permitido.`);
   let body;
-  try { const text = await response.text(); if (text.length > 400000) throw new Error(); body = text ? JSON.parse(text) : {}; }
-  catch { throw new SafeError('format'); }
+  try {
+    const chunks = []; let size = 0;
+    for await (const chunk of response.body || []) {
+      size += chunk.length;
+      if (size > limit) throw new SafeError('format', `La respuesta de ${stage} supera el tamaño permitido.`);
+      chunks.push(chunk);
+    }
+    const text = Buffer.concat(chunks).toString('utf8');
+    body = text ? JSON.parse(text) : {};
+  } catch (error) {
+    if (error instanceof SafeError) throw error;
+    throw new SafeError('format', `La respuesta de ${stage} no es JSON (HTTP ${response.status}; ${response.headers.get('content-type') || 'sin tipo de contenido'}).`);
+  }
   if (!response.ok) throw new SafeError(errorCode(response.status, body), 'El servicio rechazó la petición.');
   return body;
+}
+
+function parseModels(catalog) {
+  // ChatGPT plan catalogs use models/slug/visibility, unlike API-key data/id catalogs.
+  if (!catalog || !Array.isArray(catalog.models)) throw new SafeError('model', 'OpenAI no devolvió el catálogo de modelos del plan.');
+  return [...new Set(catalog.models.filter(item => item && item.visibility === 'list').map(item => item.slug)
+    .filter(id => typeof id === 'string' && /^[a-zA-Z0-9_.:\/-]{1,120}$/.test(id)))].slice(0,150);
 }
 
 function validateIdentity(token, jwks, {clientId, nonce, subject, now = Math.floor(Date.now() / 1000)}) {
@@ -84,26 +106,29 @@ function openBrowser(url) {
   child.on('error', () => console.error('No se pudo abrir el navegador. Comprueba que tienes un navegador predeterminado.'));
 }
 
-async function callbackListener(state, timeout = 180000) {
+async function callbackListener(state, timeout = AUTH_WAIT_MS) {
   let resolveCallback, rejectCallback;
   const callback = new Promise((resolve, reject) => { resolveCallback = resolve; rejectCallback = reject; });
   // Prevent a delayed browser opening from causing an unhandled rejection.
   callback.catch(() => {});
+  let consumed = false;
   const server = http.createServer((request, response) => {
     const url = new URL(request.url, 'http://127.0.0.1');
     response.setHeader('Content-Type', 'text/html; charset=utf-8');
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader('Referrer-Policy', 'no-referrer');
     response.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'");
-    if (request.method !== 'GET' || url.pathname !== '/auth/callback' || url.searchParams.get('state') !== state) {
+    if (consumed || request.method !== 'GET' || url.pathname !== '/auth/callback' || url.searchParams.get('state') !== state) {
       response.writeHead(400); response.end('Petición no válida.'); return;
     }
     if (url.searchParams.has('error')) {
+      consumed = true;
       response.end('La autorización no se completó. Regresa al asistente.'); rejectCallback(new SafeError('consent', 'No se autorizó el uso del plan.')); return;
     }
     const code = url.searchParams.get('code');
     const clientId = url.searchParams.get('client_id');
     if (!code || code.length > 8000) { response.writeHead(400); response.end('Respuesta incompleta.'); return; }
+    consumed = true;
     response.end('<!doctype html><html lang="es"><meta charset="utf-8"><title>CPT AI · ChatGPT</title><body style="font:16px system-ui;margin:64px;color:#24344c"><h1>Autorización recibida</h1><p>Regresa al asistente. Allí se comprobará la conexión con ChatGPT.</p></body></html>');
     resolveCallback({code, clientId});
   });
@@ -271,6 +296,7 @@ async function main() {
   console.log('Tu sesión se mantiene en este ordenador; no se envían claves de OpenAI a WordPress.');
   const local = await chooseProfile(connection);
   console.log('Abriendo la página oficial de OpenAI…');
+  console.log('Tienes 15 minutos para completar el inicio de sesión. Mantén el asistente abierto.');
   const session = await authorize(local.profile, local.metadata.hostId);
   local.metadata.accounts = local.metadata.accounts.filter(account => account.clientId !== session.clientId);
   local.metadata.accounts.push({clientId:session.clientId, subject:session.subject, email:session.email});
@@ -290,7 +316,7 @@ async function main() {
   try {
     await refresh(session);
     const catalog = await jsonRequest(API + '/models', {headers:{Authorization:'Bearer ' + session.tokens.access_token}});
-    const models = [...new Set((catalog.data || []).map(item => item.id).filter(id => typeof id === 'string' && /^[a-zA-Z0-9_.:\/-]{1,120}$/.test(id)))].sort().slice(0,150);
+    const models = parseModels(catalog);
     if (!models.length) throw new SafeError('model', 'OpenAI no devolvió modelos disponibles para esta conexión.');
     console.log('Sesión autorizada. Selecciona ChatGPT · Mi plan en WordPress, consulta los modelos y guarda.');
     console.log('Mantén esta ventana abierta. Pulsa Ctrl+C para cerrar la sesión.');
@@ -325,7 +351,7 @@ async function main() {
   }
 }
 
-module.exports = {validateConnection, endpointFor, validateIdentity, validateGrant, validateJob, translationPayload, parseStream, errorCode, callbackListener, authorize, refresh, SafeError};
+module.exports = {AUTH_WAIT_MS, jsonRequest, parseModels, validateConnection, endpointFor, validateIdentity, validateGrant, validateJob, translationPayload, parseStream, errorCode, callbackListener, authorize, refresh, SafeError};
 if (require.main === module) main().catch(error => {
   const message = error instanceof SafeError ? error.message : 'El asistente no pudo continuar.';
   console.error('CPT AI: ' + message);

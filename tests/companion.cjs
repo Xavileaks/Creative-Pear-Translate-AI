@@ -2,10 +2,14 @@
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const {Readable} = require('node:stream');
-const {validateConnection, endpointFor, validateIdentity, validateGrant, validateJob, translationPayload, parseStream, errorCode, callbackListener, authorize, refresh} = require('../companion/cptai-companion.cjs');
+const {AUTH_WAIT_MS, jsonRequest, parseModels, validateConnection, endpointFor, validateIdentity, validateGrant, validateJob, translationPayload, parseStream, errorCode, callbackListener, authorize, refresh} = require('../companion/cptai-companion.cjs');
 let checks = 0;
 function check(fn) { fn(); checks++; }
 const connection = {version:1, endpoint:'https://example.org/wp-json/cptai/v1/plan/', secret:'a'.repeat(64), installation:'12345678-1234-1234-1234-123456789abc'};
+check(() => assert.equal(AUTH_WAIT_MS, 900000));
+check(() => assert.deepEqual(parseModels({models:[{slug:'model-z',visibility:'list'},{slug:'hidden',visibility:'hide'},{slug:'model-a',visibility:'list'},{slug:'model-z',visibility:'list'}]}), ['model-z','model-a']));
+check(() => assert.deepEqual(parseModels({models:[{slug:'invalid id',visibility:'list'},null]}), []));
+check(() => assert.throws(() => parseModels({data:[{id:'api-key-model'}]})));
 check(() => assert.equal(validateConnection(connection).endpoint, connection.endpoint));
 check(() => assert.equal(endpointFor(connection, 'poll'), connection.endpoint + 'poll'));
 const plain = {...connection, endpoint:'https://example.org/?rest_route=/cptai/v1/plan/'};
@@ -57,7 +61,20 @@ check(() => assert.equal(errorCode(401, {error:{message:'private-secret'}}), 'au
   await fetch(listener.redirect + '?state=valid-state&code=fake-code&client_id=oaiapp_test');
   const result = await pending;
   check(() => assert.equal(result.code, 'fake-code'));
+  const replay = await fetch(listener.redirect + '?state=valid-state&code=fake-code&client_id=oaiapp_test');
+  check(() => assert.equal(replay.status, 400));
   listener.close();
+
+  // A slow sign-in still succeeds while the listener is open; expiry is actionable.
+  const delayed = await callbackListener('delayed-state', 1500);
+  await new Promise(resolve => setTimeout(resolve, 150));
+  await fetch(delayed.redirect + '?state=delayed-state&code=fake-delay&client_id=oaiapp_test');
+  const delayedResult = await delayed.callback;
+  check(() => assert.equal(delayedResult.code, 'fake-delay'));
+  delayed.close();
+  const expired = await callbackListener('expired-state', 20);
+  await assert.rejects(expired.callback, error => error.code === 'timeout'); checks++;
+  expired.close();
 
   // Complete an OAuth exchange against a deterministic fake transport, real loopback and real RSA signatures.
   const originalFetch = global.fetch;
@@ -94,6 +111,10 @@ check(() => assert.equal(errorCode(401, {error:{message:'private-secret'}}), 'au
     check(() => assert.equal(posted.get('grant_type'), 'refresh_token'));
     check(() => assert.equal(posted.get('client_id'), 'oaiapp_test'));
     check(() => assert.equal(posted.has('scope'), false));
+    global.fetch = async () => Response.json({models:[{slug:'model-z',visibility:'list',instructions:'x'.repeat(500000)}]});
+    const largeCatalog = await jsonRequest('https://api.openai.com/v1/models');
+    check(() => assert.deepEqual(parseModels(largeCatalog), ['model-z']));
+    await assert.rejects(() => jsonRequest('https://auth.openai.com/api/accounts/oauth/token')); checks++;
   } finally { global.fetch = originalFetch; }
   console.log(`PASS: ${checks} companion checks; no real OpenAI requests or credentials.`);
 })().catch(error => { console.error(error); process.exitCode = 1; });
