@@ -51,6 +51,10 @@ check(() => assert.equal(errorCode(401, {error:{message:'private-secret'}}), 'au
   const bytes = Buffer.from(frame({type:'response.output_text.delta',delta:'ignored'}) + done);
   const split = [...bytes].map(byte => Buffer.from([byte]));
   assert.deepEqual(await parseStream(Readable.from(split)), ['Enviar %s']); checks++;
+  const deltaOnly = frame({type:'response.output_text.delta',item_id:'item',content_index:0,delta:'["Enviar '}) + frame({type:'response.output_text.delta',item_id:'item',content_index:0,delta:'%s"]'}) + frame({type:'response.output_text.done',item_id:'item',content_index:0,text:'["Enviar %s"]'}) + frame({type:'response.completed',response:{status:'completed',output:[]}});
+  assert.deepEqual(await parseStream(Readable.from([Buffer.from(deltaOnly)])), ['Enviar %s']); checks++;
+  const fencedResult = frame({type:'response.output_text.done',text:'```json\n["Enviar %s"]\n```'}) + frame({type:'response.completed',response:{status:'completed'}});
+  assert.deepEqual(await parseStream(Readable.from([Buffer.from(fencedResult)])), ['Enviar %s']); checks++;
   for (const text of [frame({type:'response.failed',response:{error:{code:'subscription_sharing_usage_limit_exceeded'}}}), frame({type:'response.incomplete'}), frame({type:'response.output_text.delta',delta:'partial'}), done.replace('Enviar %s', 'broken\\"')]) {
     await assert.rejects(() => parseStream(Readable.from([Buffer.from(text)]))); checks++;
   }

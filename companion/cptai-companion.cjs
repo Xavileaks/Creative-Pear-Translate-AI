@@ -158,6 +158,7 @@ async function authorize(profile, hostId, open = openBrowser) {
     const values = {client_id:profile?.clientId || 'dynamic_agent_client', ext_agent_host_id:hostId, response_type:'code', redirect_uri:listener.redirect,
       scope:SCOPES, resource:API, state, nonce, code_challenge_method:'S256', code_challenge:base64url(crypto.createHash('sha256').update(verifier).digest())};
     if (!profile) values.agent_name_hint = 'Creative Pear Translate AI';
+    if (profile && typeof profile.email === 'string' && profile.email.includes('@')) values.login_hint = profile.email;
     for (const [key, value] of Object.entries(values)) url.searchParams.set(key, value);
     open(url.href);
     const returned = await listener.callback;
@@ -197,10 +198,11 @@ function translationPayload(job) {
 
 async function parseStream(body) {
   let buffer = '', size = 0, completed = false, text = '';
+  const parts = new Map();
   const decoder = new TextDecoder();
   for await (const chunk of body) {
     size += chunk.length;
-    if (size > 2000000) throw new SafeError('format');
+    if (size > 2000000) throw new SafeError('format', 'La respuesta en streaming supera el tamaño permitido.');
     buffer += decoder.decode(chunk, {stream:true});
     // Split CRLF or LF SSE frames, including frames split across network chunks.
     let boundary;
@@ -210,9 +212,12 @@ async function parseStream(body) {
       const data = frame.split(/\r?\n/).filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n');
       if (!data || data === '[DONE]') continue;
       let event;
-      try { event = JSON.parse(data); } catch { throw new SafeError('format'); }
+      try { event = JSON.parse(data); } catch { throw new SafeError('format', 'Un evento del streaming no contiene JSON válido.'); }
       if (event.type === 'response.failed' || event.type === 'error') throw new SafeError(errorCode(500, event));
       if (event.type === 'response.incomplete') throw new SafeError('incomplete');
+      const partId = `${event.item_id || event.output_index || 'text'}:${event.content_index || 0}`;
+      if (event.type === 'response.output_text.delta' && typeof event.delta === 'string') parts.set(partId, (parts.get(partId) || '') + event.delta);
+      if (event.type === 'response.output_text.done' && typeof event.text === 'string') parts.set(partId, event.text);
       if (event.type === 'response.completed') {
         if (event.response?.status !== 'completed') throw new SafeError('incomplete');
         completed = true;
@@ -221,8 +226,12 @@ async function parseStream(body) {
     }
   }
   if (!completed) throw new SafeError('incomplete');
-  try { const output = JSON.parse(text.trim()); if (!Array.isArray(output) || output.some(item => typeof item !== 'string')) throw new Error(); return output; }
-  catch { throw new SafeError('format'); }
+  text = (text || [...parts.values()].join('')).trim();
+  // Accept an exact JSON fence, never arbitrary prose or a partial extracted array.
+  const fenced = /^```(?:json)?\s*\n([\s\S]*?)\n```$/i.exec(text);
+  if (fenced) text = fenced[1].trim();
+  try { const output = JSON.parse(text); if (!Array.isArray(output) || output.some(item => typeof item !== 'string')) throw new Error(); return output; }
+  catch { throw new SafeError('format', `El texto final no es un array JSON de traducciones (longitud: ${text.length}).`); }
 }
 
 async function translate(session, job, models) {
@@ -339,7 +348,10 @@ async function main() {
       if (result.job) {
         console.log('Procesando un lote de traducción solicitado desde WordPress…');
         try { pendingResult = {id:result.job.id, translations:await translate(session, result.job, models)}; }
-        catch (error) { pendingResult = {id:result.job.id, error:error instanceof SafeError ? error.code : 'network'}; console.log('No se completó el lote. WordPress mostrará el motivo.'); }
+        catch (error) {
+          pendingResult = {id:result.job.id, error:error instanceof SafeError ? error.code : 'network'};
+          console.log(error instanceof SafeError ? 'CPT AI: ' + error.message : 'No se completó el lote. WordPress mostrará el motivo.');
+        }
       } else await sleep(2000);
     }
   } finally {

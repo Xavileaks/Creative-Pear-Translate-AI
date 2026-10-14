@@ -3,7 +3,7 @@ Contributors: xavileaks
 Tags: translation, multilingual, openai, claude
 Requires at least: 6.4
 Requires PHP: 8.1
-Stable tag: 1.4.1
+Stable tag: 1.4.2
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -36,6 +36,11 @@ Condiciones: https://www.anthropic.com/legal/commercial-terms
 Privacidad: https://www.anthropic.com/legal/privacy
 
 == Changelog ==
+
+= 1.4.2 =
+* Se recoge el texto de los eventos delta/done de Responses, también cuando el evento final no lo repite.
+* Se aceptan respuestas completas en un bloque JSON, manteniendo la validación del lote y sus marcadores.
+* Se facilita volver a iniciar sesión con la cuenta previamente seleccionada.
 
 = 1.4.1 =
 * El asistente espera 15 minutos para completar el inicio de sesión en OpenAI y lo indica antes de abrir el navegador.
