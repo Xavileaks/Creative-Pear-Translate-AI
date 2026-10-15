@@ -400,10 +400,10 @@ final class CPTAI_Admin {
         if ( ! CPTAI_Frontend::local_url( $url ) ) {
             self::result( new WP_Error( 'url', 'La página de referencia debe ser una URL pública de este sitio.' ) );
         }
-        $inserted = $wpdb->query( $wpdb->prepare( 'INSERT IGNORE INTO ' . CPTAI_Store::table() . ' (source_lang,target_lang,source_hash,original,translated,original_display,translated_display,source_url,updated_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)', $source, $target, hash( 'sha256', $original ), $original, $translated, CPTAI_Store::search_text( $original ), CPTAI_Store::search_text( $translated ), $url, current_time( 'mysql', true ) ) );
+        $inserted = $wpdb->query( $wpdb->prepare( 'INSERT IGNORE INTO ' . CPTAI_Store::table() . ' (source_lang,target_lang,source_hash,original,translated,original_display,translated_display,source_url,updated_at,legacy_fragment) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,2)', $source, $target, hash( 'sha256', $original ), $original, $translated, CPTAI_Store::search_text( $original ), CPTAI_Store::search_text( $translated ), $url, current_time( 'mysql', true ) ) );
         if ( false === $inserted ) { self::result( new WP_Error( 'db', 'No se pudo añadir la cadena. El texto permanece en los campos.' ) ); }
         if ( 0 === $inserted ) {
-            $restored = $wpdb->query( $wpdb->prepare( 'UPDATE ' . CPTAI_Store::table() . ' SET legacy_fragment=0 WHERE source_lang=%s AND target_lang=%s AND source_hash=%s AND legacy_fragment=1', $source, $target, hash( 'sha256', $original ) ) );
+            $restored = $wpdb->query( $wpdb->prepare( 'UPDATE ' . CPTAI_Store::table() . ' SET legacy_fragment=2 WHERE source_lang=%s AND target_lang=%s AND source_hash=%s AND legacy_fragment=1', $source, $target, hash( 'sha256', $original ) ) );
             if ( ! $restored ) { self::result( new WP_Error( 'duplicate', 'Esta cadena ya existe para ese idioma. Búscala en el diccionario para editarla; su traducción se conserva.' ) ); }
         }
         self::result( array( 'original' => $original, 'target' => $target ) );

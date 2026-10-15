@@ -79,6 +79,15 @@ try {
     $fragment_id = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . CPTAI_Store::table() . ' WHERE original=%s AND target_lang=%s', $first, 'uk' ) );
     br_check( in_array( (int) $row->id, $all_job['ids'], true ) && ! in_array( $fragment_id, $all_job['ids'], true ), 'translate-all includes complete phrase and excludes superseded pending fragment' );
     delete_transient( 'cptai_job_' . $all['data']['job'] );
+    CPTAI_Store::capture( array( $first ), 'en', 'uk', home_url( '/' ) );
+    CPTAI_Store::capture( array( $original ), 'en', 'uk', home_url( '/' ), true );
+    $dictionary = br_ajax( 'dictionary', array( 'target' => 'uk', 's' => $first ) );
+    br_check( 2 === $dictionary['data']['total'], 'complete HTML scan preserves independent dynamic message previously captured in browser' );
+    $wpdb->delete( CPTAI_Store::locations(), array( 'source_lang' => 'en', 'target_lang' => 'uk', 'source_hash' => hash( 'sha256', $first ) ) );
+    $manual = br_ajax( 'add_string', array( 'target' => 'uk', 'original' => $first, 'translated' => '' ) );
+    CPTAI_Store::capture( array( $original ), 'en', 'uk', home_url( '/' ), true );
+    $dictionary = br_ajax( 'dictionary', array( 'target' => 'uk', 's' => $first ) );
+    br_check( $manual['success'] && 2 === $dictionary['data']['total'], 'explicit manual message remains editable after rereading matching grouped phrase' );
 } finally {
     if ( $job ) { delete_transient( 'cptai_job_' . $job ); }
     $wpdb->query( $wpdb->prepare( 'DELETE FROM ' . CPTAI_Store::table() . ' WHERE source_lang=%s AND target_lang=%s AND original IN (%s,%s,%s)', 'en', 'uk', $original, $first, 'Different text' ) );

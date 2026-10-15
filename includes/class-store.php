@@ -37,7 +37,8 @@ final class CPTAI_Store {
 
     public static function visible_sql(): string {
         $table = self::table(); $locations = self::locations();
-        return "(legacy_fragment=0 OR EXISTS (SELECT 1 FROM $locations l WHERE l.source_lang=$table.source_lang AND l.target_lang=$table.target_lang AND l.source_hash=$table.source_hash))";
+        // 2 pins an explicitly added manual message, even if it also occurs in a group.
+        return "(legacy_fragment<>1 OR EXISTS (SELECT 1 FROM $locations l WHERE l.source_lang=$table.source_lang AND l.target_lang=$table.target_lang AND l.source_hash=$table.source_hash))";
     }
 
     public static function display_sql( string $column ): string {
@@ -116,9 +117,11 @@ final class CPTAI_Store {
         return hash( 'sha256', rtrim( $url, '/' ) );
     }
 
-    private static function locate( string $hash, string $source, string $target, string $url ): void {
+    private static function locate( string $hash, string $source, string $target, string $url, bool $dynamic = false ): void {
         global $wpdb;
-        if ( false === $wpdb->query( $wpdb->prepare( 'INSERT IGNORE INTO ' . self::locations() . ' (source_lang,target_lang,source_hash,url_hash) VALUES (%s,%s,%s,%s)', $source, $target, $hash, self::url_hash( $url ) ) ) ) { throw new RuntimeException( 'No se pudo guardar la referencia.' ); }
+        // A later HTML scan cannot disprove a message seen after a browser interaction.
+        $url_hash = $dynamic ? hash( 'sha256', 'dynamic:' . self::url_hash( $url ) ) : self::url_hash( $url );
+        if ( false === $wpdb->query( $wpdb->prepare( 'INSERT IGNORE INTO ' . self::locations() . ' (source_lang,target_lang,source_hash,url_hash) VALUES (%s,%s,%s,%s)', $source, $target, $hash, $url_hash ) ) ) { throw new RuntimeException( 'No se pudo guardar la referencia.' ); }
     }
 
     public static function capture( array $strings, string $source, string $target, string $url, bool $complete = false, array $fragments = array() ): int {
@@ -134,9 +137,9 @@ final class CPTAI_Store {
             $fragments = array_merge( $fragments, CPTAI_Breaks::fragments( $original ) );
         }
         if ( $complete && false === $wpdb->query( $wpdb->prepare( 'DELETE FROM ' . self::locations() . ' WHERE source_lang=%s AND target_lang=%s AND url_hash=%s', $source, $target, self::url_hash( $url ) ) ) ) { throw new RuntimeException( 'No se pudieron actualizar las referencias.' ); }
-        foreach ( array_unique( $strings ) as $original ) { self::locate( hash( 'sha256', $original ), $source, $target, $url ); }
+        foreach ( array_unique( $strings ) as $original ) { self::locate( hash( 'sha256', $original ), $source, $target, $url, ! $complete ); }
         foreach ( array_unique( $fragments ) as $fragment ) {
-            if ( false === $wpdb->query( $wpdb->prepare( 'UPDATE ' . self::table() . ' SET legacy_fragment=1 WHERE source_lang=%s AND target_lang=%s AND source_hash=%s', $source, $target, hash( 'sha256', $fragment ) ) ) ) { throw new RuntimeException( 'No se pudieron agrupar las cadenas antiguas.' ); }
+            if ( false === $wpdb->query( $wpdb->prepare( 'UPDATE ' . self::table() . ' SET legacy_fragment=1 WHERE source_lang=%s AND target_lang=%s AND source_hash=%s AND legacy_fragment<>2', $source, $target, hash( 'sha256', $fragment ) ) ) ) { throw new RuntimeException( 'No se pudieron agrupar las cadenas antiguas.' ); }
         }
         return $count;
     }

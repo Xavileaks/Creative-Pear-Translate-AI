@@ -3,7 +3,7 @@ Contributors: xavileaks
 Tags: translation, multilingual, openai, claude
 Requires at least: 6.4
 Requires PHP: 8.1
-Stable tag: 1.6.3
+Stable tag: 1.6.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -36,6 +36,9 @@ Condiciones: https://www.anthropic.com/legal/commercial-terms
 Privacidad: https://www.anthropic.com/legal/privacy
 
 == Changelog ==
+
+= 1.6.4 =
+* La limpieza de fragmentos conserva los mensajes independientes añadidos manualmente o detectados tras una interacción en navegador.
 
 = 1.6.3 =
 * El diccionario muestra frases normales, sin códigos internos, también al sugerir con IA y guardar.
