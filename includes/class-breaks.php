@@ -13,6 +13,7 @@ final class CPTAI_Breaks {
 
     // Formatting tokens belong to the storage/provider protocol, never the editor.
     public static function display( string $text ): string {
+        $text = str_replace( array( "\r\n", "\r" ), "\n", $text );
         if ( ! self::markers( $text ) ) { return $text; }
         $text = preg_replace( '/\[cptai_tag_\d+\]/', '', $text );
         $text = preg_replace( '/[ \t]*\[cptai_br_\d+\][ \t]*/', "\n", $text );

@@ -356,6 +356,7 @@ final class CPTAI_Admin {
         $text = trim( $input );
         $plain = ! empty( $_POST['plain'] );
         if ( $plain ) {
+            $text = str_replace( array( "\r\n", "\r" ), "\n", $text );
             $formatted = isset( $_POST['formatted'] ) && is_string( $_POST['formatted'] ) ? wp_unslash( $_POST['formatted'] ) : '';
             $text = $formatted && CPTAI_Breaks::display( $formatted ) === $text && CPTAI_Breaks::valid( $row->original, $formatted ) ? $formatted : CPTAI_Breaks::encode( $row->original, $text, $row->translated );
         }
@@ -367,6 +368,7 @@ final class CPTAI_Admin {
         }
         $expected = isset( $_POST['expected'] ) && is_string( $_POST['expected'] ) ? wp_unslash( $_POST['expected'] ) : $row->translated;
         if ( $plain && isset( $_POST['expected'] ) ) {
+            $expected = str_replace( array( "\r\n", "\r" ), "\n", $expected );
             if ( $expected !== CPTAI_Breaks::display( $row->translated ) ) { self::result( new WP_Error( 'conflict', 'La cadena se guardó en otra sesión. Recarga para revisar esa versión antes de sustituirla.' ) ); }
             $expected = $row->translated;
         }

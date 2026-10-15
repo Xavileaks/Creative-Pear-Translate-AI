@@ -70,8 +70,10 @@ try {
     $cleared = br_ajax( 'save_string', array( 'id' => $row->id, 'plain' => '1', 'translated' => '', 'expected' => $single['data']['text'] ) );
     br_check( $cleared['success'] && '' === $cleared['data']['text'], 'clear resets grouped translation' );
     $suggestion = 'Un equipo entero [cptai_br_1] creativo para ti!';
-    $saved = br_ajax( 'save_string', array( 'id' => $row->id, 'plain' => '1', 'translated' => CPTAI_Breaks::display( $suggestion ), 'formatted' => $suggestion, 'expected' => '' ) );
+    $saved = br_ajax( 'save_string', array( 'id' => $row->id, 'plain' => '1', 'translated' => str_replace( "\n", "\r\n", CPTAI_Breaks::display( $suggestion ) ), 'formatted' => $suggestion, 'expected' => '' ) );
     br_check( $saved['success'] && CPTAI_Store::find( array( $original ), 'en', 'uk' )[ $original ] === $suggestion, 'saving reviewed AI suggestion retains its exact internal layout' );
+    $again = br_ajax( 'save_string', array( 'id' => $row->id, 'plain' => '1', 'translated' => "Un equipo creativo\r\npara ti!", 'expected' => str_replace( "\n", "\r\n", $saved['data']['text'] ) ) );
+    br_check( $again['success'] && "Un equipo creativo\npara ti!" === $again['data']['text'], 'multipart CRLF line endings allow repeated saves without false conflict' );
     CPTAI_Store::put( $original, '', 'en', 'uk', home_url( '/' ) );
     CPTAI_Store::put( $first, '', 'en', 'uk', home_url( '/' ) );
     $all = br_ajax( 'prepare_all', array( 'target' => 'uk' ) );

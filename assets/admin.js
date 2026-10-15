@@ -56,7 +56,10 @@
   }
   const snapshot = data => JSON.stringify([...data].sort((a, b) => a[0].localeCompare(b[0]) || String(a[1]).localeCompare(String(b[1]))));
   const rows = new Map();
-  const displayText = text => text.replace(/\[cptai_tag_\d+\]/g, '').replace(/[ \t]*\[cptai_br_\d+\][ \t]*/g, '\n').split('\n').map(line => line.trim()).join('\n').trim();
+  const displayText = text => {
+    text = text.replace(/\r\n?/g, '\n');
+    return /\[cptai_(?:br|tag)_\d+\]/.test(text) ? text.replace(/\[cptai_tag_\d+\]/g, '').replace(/[ \t]*\[cptai_br_\d+\][ \t]*/g, '\n').split('\n').map(line => line.trim()).join('\n').trim() : text;
+  };
   let rowRevision = 0;
   const dictionaryResults = document.getElementById('cptai-dictionary-results');
   const filterForm = document.querySelector('.cptai-filters');

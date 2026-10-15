@@ -129,7 +129,7 @@ El ZIP TranslatePress 3.3.8 facilitado por el usuario se revisó como referencia
 
 ## Publicación
 
-Las etiquetas `v*` validan PHP y JavaScript, ejecutan las pruebas y generan `creative-pear-translate-ai.zip` como archivo instalable de GitHub Releases. Instala ese archivo, no el ZIP automático del código fuente. Versión actual: **1.6.4**. La actualización conserva las traducciones y claves anteriores.
+Las etiquetas `v*` validan PHP y JavaScript, ejecutan las pruebas y generan `creative-pear-translate-ai.zip` como archivo instalable de GitHub Releases. Instala ese archivo, no el ZIP automático del código fuente. Versión actual: **1.6.5**. La actualización conserva las traducciones y claves anteriores.
 
 Desde 1.6.1 se consulta GitHub Releases cada **5 minutos** con un evento propio de WP-Cron. También se comprueba al abrir la administración, reutilizando la misma caché de cinco minutos, sin peticiones por cada visita pública. Usa HTTPS sin claves ni cookies, consultas condicionales con ETag y un bloqueo breve para evitar consultas simultáneas. Los errores se reintentan en el siguiente intervalo; los metadatos verificados pueden mantenerse hasta 24 horas durante un corte. Solo acepta versiones estables `vX.Y.Z` y el archivo `creative-pear-translate-ai.zip` de este repositorio; el ZIP automático del código fuente no se usa.
 
