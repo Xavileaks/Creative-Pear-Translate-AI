@@ -38,7 +38,13 @@ let checks=0; const check=fn=>{fn();checks++;};
       check(()=>assert.ok(!fs.readFileSync(file+'.worker','utf8').includes('fake-refresh')));
       const state=await control(file); check(()=>assert.deepEqual(state,{running:true}));
       await assert.rejects(()=>acquireRuntime(file,async()=>({}))); checks++;
-      await control(file,'stop'); check(()=>assert.deepEqual(events,['status','stop']));
+      await control(file,'stop');
+      // Unix probes the existing socket before rejecting a duplicate; Windows
+      // rejects the second named-pipe listener directly. Both must keep one owner.
+      check(()=>assert.equal(events[0],'status'));
+      check(()=>assert.equal(events.at(-1),'stop'));
+      check(()=>assert.equal(events.filter(operation=>operation==='stop').length,1));
+      check(()=>assert.ok(events.every(operation=>['status','stop'].includes(operation))));
     } finally { await release(); }
     check(()=>assert.equal(fs.existsSync(file+'.worker'),false));
     check(()=>assert.equal(store.load(session).tokens.refresh_token,'fake-rotated-refresh'));
