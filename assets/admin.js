@@ -56,6 +56,7 @@
   }
   const snapshot = data => JSON.stringify([...data].sort((a, b) => a[0].localeCompare(b[0]) || String(a[1]).localeCompare(String(b[1]))));
   const rows = new Map();
+  const displayText = text => text.replace(/\[cptai_tag_\d+\]/g, '').replace(/[ \t]*\[cptai_br_\d+\][ \t]*/g, '\n').split('\n').map(line => line.trim()).join('\n').trim();
   let rowRevision = 0;
   const dictionaryResults = document.getElementById('cptai-dictionary-results');
   const filterForm = document.querySelector('.cptai-filters');
@@ -89,6 +90,7 @@
       const submitted = field.value;
       const body = new FormData(form);
       body.set('expected', state.baseline);
+      if (state.suggestion && displayText(state.suggestion) === submitted.trim()) body.set('formatted', state.suggestion);
       state.saving = true;
       state.update();
       try {
@@ -110,7 +112,8 @@
       try {
         const result = await request('row', {id});
         if (field.value !== previous) { toast('Se conserva tu edición: el texto cambió mientras la IA respondía.'); return; }
-        field.value = result.text;
+        state.suggestion = result.text;
+        field.value = displayText(result.text);
         state.update();
         toast('Sugerencia preparada. Revísala y guarda la traducción.');
       } catch (error) { toast(error.message, true); }
@@ -561,8 +564,8 @@
           const row = rows.get(String(result.row.id));
           if (row && !row.saving && !row.suggesting) {
             const dirty = row.field.value !== row.baseline;
-            row.baseline = result.row.text;
-            if (!dirty) row.field.value = result.row.text;
+            row.baseline = displayText(result.row.text);
+            if (!dirty) row.field.value = row.baseline;
             row.changedAt = ++rowRevision;
             row.update();
           }

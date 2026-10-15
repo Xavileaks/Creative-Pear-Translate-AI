@@ -29,7 +29,25 @@ check( ! CPTAI_Provider::valid( $original, 'Un equipo <br> a tu alcance' ), 'HTM
 check( ! CPTAI_Provider::valid( 'First [cptai_br_1] [cptai_br_2] Last', 'Primero [cptai_br_2] [cptai_br_1] Último' ), 'reordered markers rejected' );
 check( ! CPTAI_Provider::valid( 'First [cptai_br_1] [cptai_br_2] Last', 'Primero [cptai_br_1] New words [cptai_br_2] Último' ), 'cannot invent words without a source text node' );
 check( ! CPTAI_Provider::valid( $original, $translated . ' [cptai_br_1]' ), 'duplicated marker rejected' );
+$user_key = "[cptai_tag_1] We figure out [cptai_br_1] if it's a fit [cptai_tag_2]";
+check( "We figure out\nif it's a fit" === CPTAI_Breaks::display( $user_key ), 'actual nested heading displays clean full phrase' );
+$user_translation = CPTAI_Breaks::encode( $user_key, "Vemos\nsi encajamos" );
+check( CPTAI_Breaks::valid( $user_key, $user_translation ) && "Vemos\nsi encajamos" === CPTAI_Breaks::display( $user_translation ), 'normal manual input restores inline wrappers and BR automatically' );
+$single_line = CPTAI_Breaks::encode( $user_key, 'Vemos si encajamos' );
+check( CPTAI_Breaks::valid( $user_key, $single_line ) && 'Vemos si encajamos' === str_replace( "\n", ' ', CPTAI_Breaks::display( $single_line ) ), 'single-line input retains every word and visual break' );
+$style_encoded = CPTAI_Breaks::encode( $styled_key, "Todo un equipo creativo completo\nal alcance de tu mano!" );
+check( CPTAI_Breaks::valid( $styled_key, $style_encoded ) && "Todo un equipo creativo completo\nal alcance de tu mano!" === CPTAI_Breaks::display( $style_encoded ), 'automatic inline boundaries preserve text and spacing' );
+$consecutive_key = 'First [cptai_br_1] [cptai_br_2] Last';
+$blank_encoded = CPTAI_Breaks::encode( $consecutive_key, "Primero\n\nÚltimo" );
+check( CPTAI_Breaks::valid( $consecutive_key, $blank_encoded ) && "Primero\n\nÚltimo" === CPTAI_Breaks::display( $blank_encoded ), 'plain editor retains consecutive empty lines' );
+check( CPTAI_Breaks::valid( $consecutive_key, CPTAI_Breaks::encode( $consecutive_key, 'Primero nuevo último' ) ), 'plain single line cannot insert words into blank markup interval' );
+check( $translated === CPTAI_Breaks::encode( $original, CPTAI_Breaks::display( $translated ), $translated ), 'unchanged plain translation retains exact existing internal formatting' );
+check( 'Reserve [date] at %s' === CPTAI_Breaks::display( 'Reserve [date] at %s' ), 'legitimate shortcode and format placeholders remain visible' );
 if ( CPTAI_HTML::preserves_markup() ) {
+    $user_html = "<h3 class=\"elementor-icon-box-title\">\n <span>\n We figure out <br>if it's a fit </span>\n</h3>";
+    $user_doc = br_doc( $user_html ); $actual_key = $user_doc->strings()[0];
+    $user_out = $user_doc->render( array( $actual_key => CPTAI_Breaks::encode( $actual_key, "Vemos\nsi encajamos" ) ), 'es' );
+    check( str_contains( $user_out, '<span>Vemos<br>si encajamos</span>' ) && str_contains( $user_out, 'class="elementor-icon-box-title"' ), 'user heading translates as one phrase with its exact original span and BR' );
     $out = $doc->render( array( $original => $translated, 'An entire creative team' => 'Incorrect fragment' ), 'es' );
     check( str_contains( $out, '<p class="elementor-heading-title elementor-size-default">Todo un equipo creativo<br>al alcance de tu mano!</p>' ), 'whole translation written to original text slots, BR and classes identical' );
     check( ! str_contains( $out, 'cptai_br' ) && ! str_contains( $out, 'Incorrect fragment' ), 'tokens not rendered and fragment translation cannot win' );

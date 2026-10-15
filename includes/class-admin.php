@@ -195,7 +195,7 @@ final class CPTAI_Admin {
         $sort_options = CPTAI_Store::sort_options();
         $sort = is_string( $_POST['sort'] ?? null ) ? $_POST['sort'] : 'newest';
         $order = $sort_options[ $sort ]['sql'] ?? $sort_options['newest']['sql'];
-        $ids = $wpdb->get_col( $wpdb->prepare( 'SELECT id FROM ' . CPTAI_Store::table() . " WHERE source_lang=%s AND target_lang=%s AND translated='' ORDER BY " . $order, $settings['source'], $target ) );
+        $ids = $wpdb->get_col( $wpdb->prepare( 'SELECT id FROM ' . CPTAI_Store::table() . " WHERE source_lang=%s AND target_lang=%s AND translated='' AND " . CPTAI_Store::visible_sql() . ' ORDER BY ' . $order, $settings['source'], $target ) );
         if ( $wpdb->last_error ) { self::result( new WP_Error( 'db', 'No se pudo preparar el diccionario.' ) ); }
         $ids = array_values( array_diff( array_map( 'intval', $ids ), $skip ) );
         $id = wp_generate_uuid4();
@@ -354,6 +354,11 @@ final class CPTAI_Admin {
             self::result( new WP_Error( 'row', 'Esta cadena no está disponible para los idiomas activos. Actualiza el diccionario.' ) );
         }
         $text = trim( $input );
+        $plain = ! empty( $_POST['plain'] );
+        if ( $plain ) {
+            $formatted = isset( $_POST['formatted'] ) && is_string( $_POST['formatted'] ) ? wp_unslash( $_POST['formatted'] ) : '';
+            $text = $formatted && CPTAI_Breaks::display( $formatted ) === $text && CPTAI_Breaks::valid( $row->original, $formatted ) ? $formatted : CPTAI_Breaks::encode( $row->original, $text, $row->translated );
+        }
         if ( '' !== $text && ! CPTAI_Provider::valid( $row->original, $text ) ) {
             self::result( new WP_Error( 'text', 'Conserva los marcadores del texto y no introduzcas HTML.' ) );
         }
@@ -361,8 +366,12 @@ final class CPTAI_Admin {
             self::result( new WP_Error( 'date', 'Conserva el día, el año y la hora de la fecha. Los meses y días de semana se traducen automáticamente.' ) );
         }
         $expected = isset( $_POST['expected'] ) && is_string( $_POST['expected'] ) ? wp_unslash( $_POST['expected'] ) : $row->translated;
+        if ( $plain && isset( $_POST['expected'] ) ) {
+            if ( $expected !== CPTAI_Breaks::display( $row->translated ) ) { self::result( new WP_Error( 'conflict', 'La cadena se guardó en otra sesión. Recarga para revisar esa versión antes de sustituirla.' ) ); }
+            $expected = $row->translated;
+        }
         // Compare and write atomically so concurrent browser tabs cannot overwrite a newer edit.
-        $saved = $wpdb->query( $wpdb->prepare( 'UPDATE ' . CPTAI_Store::table() . ' SET translated=%s,updated_at=%s WHERE id=%d AND BINARY translated=BINARY %s', $text, current_time( 'mysql', true ), $row->id, $expected ) );
+        $saved = $wpdb->query( $wpdb->prepare( 'UPDATE ' . CPTAI_Store::table() . ' SET translated=%s,translated_display=%s,updated_at=%s WHERE id=%d AND BINARY translated=BINARY %s', $text, CPTAI_Store::search_text( $text ), current_time( 'mysql', true ), $row->id, $expected ) );
         if ( false === $saved ) {
             self::result( new WP_Error( 'db', 'No se pudo guardar la traducción. Tu edición permanece en el campo.' ) );
         }
@@ -370,7 +379,7 @@ final class CPTAI_Admin {
         if ( 0 === $saved && $current !== $text ) {
             self::result( new WP_Error( 'conflict', 'La cadena se guardó en otra sesión. Recarga para revisar esa versión antes de sustituirla.' ) );
         }
-        self::result( array( 'id' => (int) $row->id, 'text' => $text, 'translated' => '' !== $text ) );
+        self::result( array( 'id' => (int) $row->id, 'text' => $plain ? CPTAI_Breaks::display( $text ) : $text, 'translated' => '' !== $text ) );
     }
 
     public static function add_string(): void {
@@ -391,9 +400,12 @@ final class CPTAI_Admin {
         if ( ! CPTAI_Frontend::local_url( $url ) ) {
             self::result( new WP_Error( 'url', 'La página de referencia debe ser una URL pública de este sitio.' ) );
         }
-        $inserted = $wpdb->query( $wpdb->prepare( 'INSERT IGNORE INTO ' . CPTAI_Store::table() . ' (source_lang,target_lang,source_hash,original,translated,source_url,updated_at) VALUES (%s,%s,%s,%s,%s,%s,%s)', $source, $target, hash( 'sha256', $original ), $original, $translated, $url, current_time( 'mysql', true ) ) );
+        $inserted = $wpdb->query( $wpdb->prepare( 'INSERT IGNORE INTO ' . CPTAI_Store::table() . ' (source_lang,target_lang,source_hash,original,translated,original_display,translated_display,source_url,updated_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)', $source, $target, hash( 'sha256', $original ), $original, $translated, CPTAI_Store::search_text( $original ), CPTAI_Store::search_text( $translated ), $url, current_time( 'mysql', true ) ) );
         if ( false === $inserted ) { self::result( new WP_Error( 'db', 'No se pudo añadir la cadena. El texto permanece en los campos.' ) ); }
-        if ( 0 === $inserted ) { self::result( new WP_Error( 'duplicate', 'Esta cadena ya existe para ese idioma. Búscala en el diccionario para editarla; su traducción se conserva.' ) ); }
+        if ( 0 === $inserted ) {
+            $restored = $wpdb->query( $wpdb->prepare( 'UPDATE ' . CPTAI_Store::table() . ' SET legacy_fragment=0 WHERE source_lang=%s AND target_lang=%s AND source_hash=%s AND legacy_fragment=1', $source, $target, hash( 'sha256', $original ) ) );
+            if ( ! $restored ) { self::result( new WP_Error( 'duplicate', 'Esta cadena ya existe para ese idioma. Búscala en el diccionario para editarla; su traducción se conserva.' ) ); }
+        }
         self::result( array( 'original' => $original, 'target' => $target ) );
     }
 
@@ -403,6 +415,7 @@ final class CPTAI_Admin {
         $id = absint( $_POST['id'] ?? 0 );
         $row = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . CPTAI_Store::table() . ' WHERE id=%d', $id ) );
         $text = trim( wp_unslash( $_POST['translated'] ?? '' ) );
+        if ( $row && ! empty( $_POST['plain'] ) ) { $text = CPTAI_Breaks::encode( $row->original, $text, $row->translated ); }
         if ( ! $row || ( '' !== $text && ! CPTAI_Provider::valid( $row->original, $text ) ) ) {
             wp_die( 'El texto no es válido. Conserva los marcadores y no introduzcas HTML.' );
         }
@@ -434,10 +447,10 @@ final class CPTAI_Admin {
         }
         $order = $sort_options[ $sort ]['sql'];
         $page = max( 1, isset( $input['paged'] ) && is_scalar( $input['paged'] ) ? absint( $input['paged'] ) : 1 );
-        $where = $wpdb->prepare( 'source_lang=%s AND target_lang=%s', $settings['source'], $target );
+        $where = $wpdb->prepare( 'source_lang=%s AND target_lang=%s', $settings['source'], $target ) . ' AND ' . CPTAI_Store::visible_sql();
         if ( '' !== $search ) {
             $like = '%' . $wpdb->esc_like( $search ) . '%';
-            $where .= $wpdb->prepare( ' AND (original LIKE %s OR translated LIKE %s)', $like, $like );
+            $where .= $wpdb->prepare( ' AND (' . CPTAI_Store::display_sql( 'original' ) . ' LIKE %s OR ' . CPTAI_Store::display_sql( 'translated' ) . ' LIKE %s)', $like, $like );
         }
         if ( $pending ) {
             $where .= " AND translated=''";

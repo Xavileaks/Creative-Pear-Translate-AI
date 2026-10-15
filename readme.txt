@@ -3,7 +3,7 @@ Contributors: xavileaks
 Tags: translation, multilingual, openai, claude
 Requires at least: 6.4
 Requires PHP: 8.1
-Stable tag: 1.6.2
+Stable tag: 1.6.3
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -36,6 +36,11 @@ Condiciones: https://www.anthropic.com/legal/commercial-terms
 Privacidad: https://www.anthropic.com/legal/privacy
 
 == Changelog ==
+
+= 1.6.3 =
+* El diccionario muestra frases normales, sin códigos internos, también al sugerir con IA y guardar.
+* Los saltos y el formato se conservan automáticamente al editar; la búsqueda y el orden usan el texto visible.
+* Al releer las páginas se ocultan los fragmentos antiguos sustituidos por frases completas, conservando sus traducciones y sus usos independientes.
 
 = 1.6.2 =
 * Las frases separadas con BR se capturan y traducen como una sola cadena, conservando los saltos originales.

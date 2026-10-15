@@ -134,6 +134,16 @@ final class CPTAI_HTML {
         return array_values( array_unique( array_column( $this->segments, 1 ) ) );
     }
 
+    public function fragments(): array {
+        $fragments = array();
+        foreach ( $this->break_groups as $group ) {
+            foreach ( $group['slots'] as $slot ) {
+                foreach ( $slot as $token ) { $fragments[] = trim( $token['raw'] ); }
+            }
+        }
+        return array_values( array_unique( array_filter( $fragments, 'strlen' ) ) );
+    }
+
     public function render( array $dictionary, string $target ): string {
         // Never serialize a repaired DOM: libxml can move Elementor containers,
         // headings, inline SVG and HTML5 elements even when no text is changed.

@@ -11,6 +11,57 @@ final class CPTAI_Breaks {
         return $matches[0];
     }
 
+    // Formatting tokens belong to the storage/provider protocol, never the editor.
+    public static function display( string $text ): string {
+        if ( ! self::markers( $text ) ) { return $text; }
+        $text = preg_replace( '/\[cptai_tag_\d+\]/', '', $text );
+        $text = preg_replace( '/[ \t]*\[cptai_br_\d+\][ \t]*/', "\n", $text );
+        return trim( implode( "\n", array_map( 'trim', explode( "\n", $text ) ) ) );
+    }
+
+    public static function fragments( string $text ): array {
+        return self::markers( $text ) ? array_values( array_filter( array_map( 'trim', preg_split( self::PATTERN, $text ) ), 'strlen' ) ) : array();
+    }
+
+    // Divide only at word boundaries. Empty original slots must stay empty.
+    private static function distribute( string $text, array $weights ): array {
+        preg_match_all( '/\S+(?:\s+|$)/u', $text, $matches );
+        $words = $matches[0]; $total = array_sum( $weights ); $used = 0; $weight = 0; $out = array();
+        foreach ( $weights as $i => $size ) {
+            $weight += $size;
+            $end = $total ? (int) round( count( $words ) * $weight / $total ) : 0;
+            $out[] = implode( '', array_slice( $words, $used, $end - $used ) ); $used = $end;
+        }
+        return $out;
+    }
+
+    public static function encode( string $original, string $text, string $previous = '' ): string {
+        $markers = self::markers( $original );
+        if ( ! $markers || '' === $text ) { return $text; }
+        if ( $previous && self::valid( $original, $previous ) && self::display( $previous ) === $text ) { return $previous; }
+        $source = preg_split( self::PATTERN, $original );
+        $basis = $previous && self::valid( $original, $previous ) ? preg_split( self::PATTERN, $previous ) : $source;
+        $lines = array( array() ); $weights = array();
+        foreach ( $source as $i => $part ) {
+            $lines[ count( $lines ) - 1 ][] = $i;
+            $weights[ $i ] = '' === trim( $part ) ? 0 : max( 1, count( preg_split( '/\s+/u', trim( $basis[ $i ] ?: $part ) ) ) );
+            if ( str_starts_with( $markers[ $i ] ?? '', '[cptai_br_' ) ) { $lines[] = array(); }
+        }
+        $human_lines = explode( "\n", str_replace( array( "\r\n", "\r" ), "\n", $text ) );
+        $line_weights = array_map( static fn( $slots ) => array_sum( array_intersect_key( $weights, array_flip( $slots ) ) ), $lines );
+        if ( count( $human_lines ) !== count( $lines ) || array_filter( $human_lines, static fn( $line, $i ) => ! $line_weights[ $i ] && '' !== trim( $line ), ARRAY_FILTER_USE_BOTH ) ) {
+            $human_lines = self::distribute( preg_replace( '/\s+/u', ' ', $text ), $line_weights );
+        }
+        $parts = array_fill( 0, count( $source ), '' );
+        foreach ( $lines as $i => $slots ) {
+            $chunks = self::distribute( trim( $human_lines[ $i ] ), array_map( static fn( $slot ) => $weights[ $slot ], $slots ) );
+            foreach ( $slots as $j => $slot ) { $parts[ $slot ] = $chunks[ $j ]; }
+        }
+        $result = '';
+        foreach ( $parts as $i => $part ) { $result .= $part . ( $markers[ $i ] ?? '' ); }
+        return $result;
+    }
+
     public static function valid( string $original, string $translated ): bool {
         $markers = self::markers( $original );
         if ( $markers !== self::markers( $translated ) ) { return false; }

@@ -23,12 +23,12 @@ final class CPTAI_Scanner {
             if ( 200 !== $code ) { return new WP_Error( 'fetch', 'Esta página devolvió HTTP ' . (int) $code . '.' ); }
             $html = wp_remote_retrieve_body( $response );
             if ( strlen( $html ) > 2097152 || stripos( $html, '<html' ) === false ) { return new WP_Error( 'html', 'La página no es HTML o supera los 2 MB.' ); }
-            try { $strings = ( new CPTAI_HTML( $html ) )->strings(); }
+            try { $document = new CPTAI_HTML( $html ); $strings = $document->strings(); }
             catch ( Throwable $e ) { return new WP_Error( 'html', 'No se pudieron leer las cadenas de esta página.' ); }
             if ( count( $strings ) > 2000 ) { return new WP_Error( 'size', 'La página tiene más de 2.000 cadenas. Usa la captura en navegador.' ); }
             $settings = CPTAI_Settings::get();
             if ( $source !== $settings['source'] || ! in_array( $target, $settings['targets'], true ) ) { return new WP_Error( 'changed', 'Los idiomas cambiaron. Inicia de nuevo la lectura; las cadenas guardadas se conservan.' ); }
-            try { $added = CPTAI_Store::capture( $strings, $source, $target, $url ); }
+            try { $added = CPTAI_Store::capture( $strings, $source, $target, $url, true, $document->fragments() ); }
             catch ( Throwable $e ) { return new WP_Error( 'db', 'No se pudieron guardar las cadenas. La lectura se ha pausado.' ); }
             return array( 'strings' => $strings, 'added' => $added, 'url' => $url );
         }
