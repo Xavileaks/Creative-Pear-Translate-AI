@@ -146,7 +146,7 @@ $plan_status = CPTAI_Plan::status();
                         <p class="cptai-hint">Vincula esta web a tu cuenta elegible de ChatGPT Plus o Pro. Las peticiones comparten los límites y créditos disponibles de tu plan. No cambia a la API de pago si el plan falla.</p>
                         <ol class="cptai-plan-steps">
                             <li>Descarga el asistente de esta web y extrae el ZIP.</li>
-                            <li>Abre <strong>Conectar-ChatGPT.cmd</strong> en Windows. En macOS/Linux, ejecuta <code>node cptai-companion.cjs</code>. Requiere Node.js 22 o posterior.</li>
+                            <li>Abre <strong>Conectar-ChatGPT.cmd</strong> en Windows. En macOS/Linux, ejecuta <code>node cptai-companion.cjs --launch</code>. Requiere Node.js 22 o posterior.</li>
                             <li>Autoriza tu cuenta en OpenAI la primera vez. La sesión se guarda protegida en tu ordenador y se recupera al reabrir. En Windows, el asistente sigue en segundo plano aunque cierres la ventana.</li>
                             <li>Selecciona esta conexión, consulta los modelos y guarda el elegido.</li>
                         </ol>
@@ -169,7 +169,7 @@ $plan_status = CPTAI_Plan::status();
                         <h3>Cómo se usa esta conexión</h3>
                         <p>Solo se envían las cadenas al pulsar <strong>Sugerir con IA</strong> o <strong>Traducir pendientes con IA</strong>. Los textos ya guardados se muestran sin volver a consultar a ChatGPT.</p>
                         <p class="cptai-hint">En cada WordPress descarga su propio asistente. Puedes conectar la cuenta del responsable de esa web. El asistente no recibe tus claves API ni acceso al resto de WordPress.</p>
-                        <p class="cptai-hint">Pulsa Ctrl+C en el asistente para cerrar y revocar la sesión de OpenAI. Si cierras la ventana directamente, puedes revocar el acceso en los ajustes de ChatGPT. Desvincular aquí cancela el acceso de este asistente a esta web.</p>
+                        <p class="cptai-hint"><strong>Detener-asistente.cmd</strong> pausa el asistente y conserva la sesión. <strong>Cerrar-sesion-ChatGPT.cmd</strong> solicita su revocación y elimina las credenciales locales. Cerrar la ventana no cierra la sesión del asistente en segundo plano. Desvincular aquí cancela únicamente el acceso a esta web.</p>
                         <a class="cptai-button" href="https://chatgpt.com/#settings/Usage" target="_blank" rel="noopener noreferrer">Gestionar uso en ChatGPT</a>
                     </section>
                 </div>

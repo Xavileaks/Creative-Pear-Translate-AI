@@ -3,7 +3,7 @@ Contributors: xavileaks
 Tags: translation, multilingual, openai, claude
 Requires at least: 6.4
 Requires PHP: 8.1
-Stable tag: 1.7.1
+Stable tag: 1.7.2
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -36,6 +36,9 @@ Condiciones: https://www.anthropic.com/legal/commercial-terms
 Privacidad: https://www.anthropic.com/legal/privacy
 
 == Changelog ==
+
+= 1.7.2 =
+* Instrucciones del panel actualizadas para distinguir detener el asistente, cerrar sesión y trabajar en segundo plano.
 
 = 1.7.1 =
 * Verificación compatible con Windows y Unix del bloqueo que evita asistentes duplicados.
