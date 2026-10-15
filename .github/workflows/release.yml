@@ -18,14 +18,18 @@ jobs:
           php tests/run.php
           curl --fail --silent --show-error https://wordpress.org/latest.tar.gz | tar xz -C /tmp
           php tests/core.php /tmp/wordpress
+          php tests/breaks.php /tmp/wordpress
+          php tests/breaks.php /tmp/wordpress legacy
           php tests/calendar.php
           node tests/calendar.cjs
           node tests/companion.cjs
+          node tests/breaks.cjs
           node --check companion/cptai-companion.cjs
           node --check assets/calendar.js
           node --check assets/admin.js
           node --check assets/frontend.js
           node --check assets/images.js
+          node --check assets/breaks.js
       - name: Crear ZIP
         run: |
           mkdir -p build/creative-pear-translate-ai

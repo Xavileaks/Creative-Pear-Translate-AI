@@ -45,7 +45,8 @@ final class CPTAI_Frontend {
             return;
         }
         wp_enqueue_script( 'cptai-calendar', plugins_url( 'assets/calendar.js', CPTAI_FILE ), array(), CPTAI_VERSION, true );
-        wp_enqueue_script( 'cptai-frontend', plugins_url( 'assets/frontend.js', CPTAI_FILE ), array( 'cptai-calendar' ), CPTAI_VERSION, true );
+        wp_enqueue_script( 'cptai-breaks', plugins_url( 'assets/breaks.js', CPTAI_FILE ), array(), CPTAI_VERSION, true );
+        wp_enqueue_script( 'cptai-frontend', plugins_url( 'assets/frontend.js', CPTAI_FILE ), array( 'cptai-calendar', 'cptai-breaks' ), CPTAI_VERSION, true );
         if ( ! $scan && self::target() ) {
             $images = CPTAI_Images::map( CPTAI_Settings::get()['source'], $target );
             if ( $images ) {

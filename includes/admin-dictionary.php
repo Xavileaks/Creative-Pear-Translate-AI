@@ -10,6 +10,7 @@ defined( 'ABSPATH' ) || exit;
                     <div class="cptai-original">
                         <span class="cptai-field-label">Texto original</span>
                         <div class="cptai-original-text"><?php echo esc_html( $row->original ); ?></div>
+                        <?php if ( CPTAI_Breaks::markers( $row->original ) ) : ?><p class="cptai-hint">Frase completa: conserva <code>[cptai_br_…]</code> (salto de línea) y <code>[cptai_tag_…]</code> (formato), en el mismo orden. No escribas HTML.</p><?php endif; ?>
                         <p class="cptai-hint">Referencia: <a href="<?php echo esc_url( $row->source_url ); ?>" target="_blank" rel="noopener noreferrer">esta página</a> · <a href="<?php echo esc_url( CPTAI_Routing::url( $row->source_url, $target ) ); ?>" target="_blank" rel="noopener noreferrer">Ver traducción</a></p>
                     </div>
                     <form class="cptai-string-form" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post">

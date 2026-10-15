@@ -3,7 +3,7 @@ Contributors: xavileaks
 Tags: translation, multilingual, openai, claude
 Requires at least: 6.4
 Requires PHP: 8.1
-Stable tag: 1.6.1
+Stable tag: 1.6.2
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -36,6 +36,12 @@ Condiciones: https://www.anthropic.com/legal/commercial-terms
 Privacidad: https://www.anthropic.com/legal/privacy
 
 == Changelog ==
+
+= 1.6.2 =
+* Las frases separadas con BR se capturan y traducen como una sola cadena, conservando los saltos originales.
+* Marcadores numerados protegen los saltos y el formato de spans, negritas y enlaces, sin reconstruir HTML.
+* La captura en navegador y los textos añadidos o modificados por JavaScript usan la misma agrupación.
+* Las traducciones completas tienen prioridad; los fragmentos antiguos se conservan para sus usos independientes.
 
 = 1.6.1 =
 * Consulta GitHub Releases cada 5 minutos mediante WP-Cron, con caché compartida y peticiones condicionales.

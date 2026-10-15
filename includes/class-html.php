@@ -6,6 +6,8 @@ final class CPTAI_HTML {
     private array $segments = array();
     private array $raw = array();
     private string $original;
+    private array $break_groups = array();
+    private array $break_nodes = array();
 
     public static function preserves_markup(): bool {
         return method_exists( 'WP_HTML_Tag_Processor', 'set_modifiable_text' );
@@ -14,6 +16,7 @@ final class CPTAI_HTML {
     public function __construct( string $html ) {
         $this->original = $html;
         if ( self::preserves_markup() ) {
+            $this->collect_breaks();
             $this->process();
             return;
         }
@@ -39,8 +42,15 @@ final class CPTAI_HTML {
             }
         }
         $xpath = new DOMXPath( $this->document );
+        $this->collect_breaks( $this->document );
+        $captured_groups = array();
         foreach ( $xpath->query( '//text() | //@alt | //@title | //@placeholder | //@aria-label | //input[@type="submit" or @type="button" or @type="reset"]/@value | //meta[@name="description"]/@content | //meta[@property="og:title" or @property="og:description"]/@content' ) as $node ) {
             if ( ! $this->excluded( $node ) ) {
+                $group_id = $this->break_nodes[ spl_object_id( $node ) ] ?? null;
+                if ( null !== $group_id ) {
+                    if ( ! isset( $captured_groups[ $group_id ] ) ) { $this->segments[] = array( null, $this->break_groups[ $group_id ]['original'] ); $captured_groups[ $group_id ] = true; }
+                    continue;
+                }
                 $text = trim( $node->nodeValue );
                 if ( $this->translatable( $text ) ) {
                     $this->segments[] = array( $node, $text );
@@ -52,6 +62,57 @@ final class CPTAI_HTML {
     public static function translatable( string $text ): bool {
         return strlen( $text ) <= 3500 && ! preg_match( '/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/', $text ) && (bool) preg_match( '/\p{L}/u', $text )
             && ! preg_match( '~^(https?://|www\.|[^\s@]+@[^\s@]+\.[^\s@]+$)~iu', $text );
+    }
+
+    private static function ignored_tags(): array {
+        return array( 'SCRIPT', 'STYLE', 'NOSCRIPT', 'CODE', 'PRE', 'TEXTAREA', 'SVG', 'MATH', 'TEMPLATE', 'IFRAME', 'NOEMBED', 'NOFRAMES', 'XMP' );
+    }
+
+    private function collect_breaks( ?DOMDocument $document = null ): void {
+        $run = array();
+        $flush = function () use ( &$run ): void {
+            $group = CPTAI_Breaks::build( $run ); $run = array();
+            if ( ! $group || ! self::translatable( $group['original'] ) ) { return; }
+            $id = count( $this->break_groups ); $this->break_groups[] = $group;
+            foreach ( $group['slots'] as $slot ) { foreach ( $slot as $token ) { $this->break_nodes[ $token['id'] ] = $id; } }
+        };
+        if ( $document ) {
+            $walk = function ( DOMNode $node ) use ( &$walk, &$run, $flush ): void {
+                if ( $node instanceof DOMText ) { $run[] = array( 'kind' => 'text', 'id' => spl_object_id( $node ), 'raw' => $node->nodeValue, 'node' => $node ); return; }
+                if ( $node instanceof DOMComment ) { return; }
+                if ( $node instanceof DOMElement ) {
+                    $tag = strtoupper( $node->tagName );
+                    if ( in_array( $tag, self::ignored_tags(), true ) || 'no' === strtolower( $node->getAttribute( 'translate' ) ) || $node->hasAttribute( 'data-cptai-ignore' ) || 'wpadminbar' === $node->getAttribute( 'id' ) || preg_match( '/(?:^|\s)(notranslate|cptai-switcher)(?:\s|$)/', $node->getAttribute( 'class' ) ) ) { $flush(); return; }
+                    if ( 'BR' === $tag ) { $run[] = array( 'kind' => 'br' ); return; }
+                    $inline = in_array( $tag, CPTAI_Breaks::INLINE, true );
+                    if ( $inline ) { $run[] = array( 'kind' => 'tag', 'tag' => $tag, 'close' => false ); } else { $flush(); }
+                    foreach ( $node->childNodes as $child ) { $walk( $child ); }
+                    if ( $inline ) { $run[] = array( 'kind' => 'tag', 'tag' => $tag, 'close' => true ); } else { $flush(); }
+                    return;
+                }
+                $flush(); foreach ( $node->childNodes as $child ) { $walk( $child ); } $flush();
+            };
+            $walk( $document ); $flush(); return;
+        }
+        $p = new WP_HTML_Tag_Processor( $this->original ); $stack = array(); $index = 0;
+        $void = array( 'AREA', 'BASE', 'BR', 'COL', 'EMBED', 'HR', 'IMG', 'INPUT', 'LINK', 'META', 'PARAM', 'SOURCE', 'TRACK', 'WBR' );
+        while ( $p->next_token() ) {
+            $index++; $tag = $p->get_tag(); $excluded = $stack ? $stack[ count( $stack ) - 1 ][1] : false;
+            if ( '#tag' === $p->get_token_type() ) {
+                if ( $p->is_tag_closer() ) {
+                    if ( ! $excluded && in_array( $tag, CPTAI_Breaks::INLINE, true ) ) { $run[] = array( 'kind' => 'tag', 'tag' => $tag, 'close' => true ); } else { $flush(); }
+                    for ( $i = count( $stack ) - 1; $i >= 0; $i-- ) { if ( $stack[ $i ][0] === $tag ) { $stack = array_slice( $stack, 0, $i ); break; } }
+                    continue;
+                }
+                $excluded = $excluded || in_array( $tag, self::ignored_tags(), true ) || 'no' === strtolower( (string) $p->get_attribute( 'translate' ) ) || null !== $p->get_attribute( 'data-cptai-ignore' ) || 'wpadminbar' === $p->get_attribute( 'id' ) || preg_match( '/(?:^|\s)(notranslate|cptai-switcher)(?:\s|$)/', (string) $p->get_attribute( 'class' ) );
+                if ( ! $excluded && 'BR' === $tag ) { $run[] = array( 'kind' => 'br' ); }
+                elseif ( ! $excluded && in_array( $tag, CPTAI_Breaks::INLINE, true ) ) { $run[] = array( 'kind' => 'tag', 'tag' => $tag, 'close' => false ); }
+                else { $flush(); }
+                if ( ! in_array( $tag, $void, true ) && ! in_array( $tag, array( 'SCRIPT', 'STYLE', 'TEXTAREA', 'TITLE', 'IFRAME', 'NOEMBED', 'NOFRAMES', 'XMP' ), true ) && ! ( $p->has_self_closing_flag() && in_array( $tag, array( 'SVG', 'MATH' ), true ) ) ) { $stack[] = array( $tag, (bool) $excluded ); }
+            } elseif ( '#text' === $p->get_token_type() && ! $excluded ) { $run[] = array( 'kind' => 'text', 'id' => $index, 'raw' => $p->get_modifiable_text() ); }
+            elseif ( '#comment' !== $p->get_token_type() ) { $flush(); }
+        }
+        $flush();
     }
 
     private function excluded( DOMNode $node ): bool {
@@ -85,6 +146,14 @@ final class CPTAI_HTML {
         $stack = array();
         $render = null !== $dictionary;
         $source = CPTAI_Settings::get()['source'];
+        $group_values = array(); $captured_groups = array(); $index = 0;
+        foreach ( $this->break_groups as $group ) {
+            $translated = $dictionary[ $group['original'] ] ?? '';
+            if ( $render && $translated && CPTAI_Provider::valid( $group['original'], $translated ) ) { $group_values += CPTAI_Breaks::replacements( $group, $translated ); }
+            elseif ( $render ) {
+                foreach ( $group['slots'] as $slot ) { foreach ( $slot as $token ) { $group_values[ $token['id'] ] = CPTAI_Calendar::translate( $token['raw'], $source, $target ); } }
+            }
+        }
         $value = function ( string $raw ) use ( $dictionary, $target, $source, $render ): string {
             $text = trim( $raw );
             if ( ! self::translatable( $text ) ) { return $raw; }
@@ -96,6 +165,7 @@ final class CPTAI_HTML {
         $void = array( 'AREA', 'BASE', 'BR', 'COL', 'EMBED', 'HR', 'IMG', 'INPUT', 'LINK', 'META', 'PARAM', 'SOURCE', 'TRACK', 'WBR' );
         $excluded_tags = array( 'SCRIPT', 'STYLE', 'NOSCRIPT', 'CODE', 'PRE', 'TEXTAREA', 'SVG', 'MATH', 'TEMPLATE', 'IFRAME', 'NOEMBED', 'NOFRAMES', 'XMP' );
         while ( $processor->next_token() ) {
+            $index++;
             $tag = $processor->get_tag();
             if ( '#tag' === $processor->get_token_type() && $processor->is_tag_closer() ) {
                 for ( $i = count( $stack ) - 1; $i >= 0; $i-- ) {
@@ -152,6 +222,12 @@ final class CPTAI_HTML {
                 }
             } elseif ( '#text' === $processor->get_token_type() && ! $excluded ) {
                 $raw = $processor->get_modifiable_text();
+                if ( isset( $this->break_nodes[ $index ] ) ) {
+                    $group_id = $this->break_nodes[ $index ];
+                    if ( ! $render && ! isset( $captured_groups[ $group_id ] ) ) { $this->segments[] = array( null, $this->break_groups[ $group_id ]['original'] ); $captured_groups[ $group_id ] = true; }
+                    if ( $render && isset( $group_values[ $index ] ) && $group_values[ $index ] !== $raw ) { $processor->set_modifiable_text( $group_values[ $index ] ); }
+                    continue;
+                }
                 $translated = $value( $raw );
                 if ( $render && $raw !== $translated ) { $processor->set_modifiable_text( $translated ); }
             }

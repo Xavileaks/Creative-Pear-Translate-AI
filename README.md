@@ -32,6 +32,10 @@ Los filtros y la paginación funcionan sin recargar. Las ediciones sin guardar s
 
 ## Fechas y mensajes de formularios
 
+Desde 1.6.2, una frase que contiene saltos `<br>` dentro del mismo bloque se guarda como una sola cadena. Por ejemplo, `An entire creative team<br>at your fingertips!` aparece como `An entire creative team [cptai_br_1] at your fingertips!`. La IA recibe la frase completa. Conserva los marcadores numerados en la traducción; al mostrarla se reutilizan las etiquetas BR originales, con sus clases y estilos. Varios saltos consecutivos mantienen las líneas vacías. Si hay negritas, enlaces o spans internos, `[cptai_tag_N]` conserva sus límites y atributos. No introduzcas HTML ni cambies el orden de los marcadores.
+
+Se aplica a Leer HTML, Leer todo el sitio y Captura en navegador, y a contenido añadido o actualizado por JavaScript. Tras actualizar, vuelve a leer las páginas para descubrir las frases completas. Las traducciones antiguas de los fragmentos no se borran, porque pueden usarse de forma independiente en otros lugares; la frase agrupada necesita su propia traducción y no reutiliza esas traducciones parciales. Los bloques distintos siguen separados. Los textos sin BR conservan sus claves. Los bloques excluidos y los formatos internos sin cerrar se dejan fuera de la agrupación; se limita a 32 saltos, 150 tokens y 3.500 bytes por cadena. En WordPress 6.4–6.6, la captura usa DOM y la traducción conserva el HTML original y se aplica en el navegador.
+
 Los nombres de meses y días de semana se traducen automáticamente entre los 13 idiomas disponibles, sin IA ni guardar una entrada para cada fecha. Se conservan mayúsculas/minúsculas, cifras, separadores y orden de la fecha. Por ejemplo, `MARCH 5, 2026` se muestra como `MARZO 5, 2026`; no se convierte en `MARZO`. También se aplica a fechas añadidas o modificadas por JavaScript. El atributo técnico `datetime` no se modifica.
 
 La detección automática se limita a nombres de calendario aislados y textos con aspecto de fecha; no cambia frases como `May I help you?`. No reformatea el orden día/mes/año, no interpreta fechas numéricas ni cambia zonas horarias. Una traducción manual completa tiene prioridad si conserva las cifras. Las correcciones antiguas que borraban día/año se conservan en el diccionario, pero al mostrar la fecha se usa la traducción automática; las ediciones nuevas que pierdan esos datos se rechazan.
@@ -125,7 +129,7 @@ El ZIP TranslatePress 3.3.8 facilitado por el usuario se revisó como referencia
 
 ## Publicación
 
-Las etiquetas `v*` validan PHP y JavaScript, ejecutan las pruebas y generan `creative-pear-translate-ai.zip` como archivo instalable de GitHub Releases. Instala ese archivo, no el ZIP automático del código fuente. Versión actual: **1.6.1**. La actualización conserva las traducciones y claves anteriores.
+Las etiquetas `v*` validan PHP y JavaScript, ejecutan las pruebas y generan `creative-pear-translate-ai.zip` como archivo instalable de GitHub Releases. Instala ese archivo, no el ZIP automático del código fuente. Versión actual: **1.6.2**. La actualización conserva las traducciones y claves anteriores.
 
 Desde 1.6.1 se consulta GitHub Releases cada **5 minutos** con un evento propio de WP-Cron. También se comprueba al abrir la administración, reutilizando la misma caché de cinco minutos, sin peticiones por cada visita pública. Usa HTTPS sin claves ni cookies, consultas condicionales con ETag y un bloqueo breve para evitar consultas simultáneas. Los errores se reintentan en el siguiente intervalo; los metadatos verificados pueden mantenerse hasta 24 horas durante un corte. Solo acepta versiones estables `vX.Y.Z` y el archivo `creative-pear-translate-ai.zip` de este repositorio; el ZIP automático del código fuente no se usa.
 

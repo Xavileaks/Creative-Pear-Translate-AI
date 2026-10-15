@@ -10,6 +10,35 @@
   const seen = new Set();
   const excluded = 'script,style,noscript,code,pre,textarea,svg,math,template,iframe,xmp,noembed,noframes,[translate="no"],[data-cptai-ignore],.notranslate,.cptai-switcher,#wpadminbar';
   const attributes = ['alt', 'title', 'placeholder', 'aria-label'];
+  const groupedNodes = new WeakSet();
+  const groupChanges = new WeakMap();
+  const calendarOnly = window.CPTAICalendar?.create(config.calendar || {},config.source,config.language,{}) || (text=>text);
+  function groupRoot(node) {
+    let root = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+    while (root?.parentElement && (root.tagName === 'BR' || window.CPTAIBreaks?.inline.has(root.tagName))) root = root.parentElement;
+    return root;
+  }
+  function prepareGroups(root) {
+    if (!window.CPTAIBreaks || !root || root.nodeType === Node.ELEMENT_NODE && root.closest(excluded)) return;
+    const walker = document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) groupedNodes.delete(walker.currentNode);
+    const textFor = node => { const old = groupChanges.get(node); return old && old.value === node.nodeValue ? old.original : node.nodeValue; };
+    for (const group of window.CPTAIBreaks.collect(root,excluded,textFor)) {
+      if (!eligible(group.original)) continue;
+      for (const slot of group.slots) for (const token of slot) groupedNodes.add(token.id);
+      if (config.scan) { if (!seen.has(group.original)) pending.add(group.original); continue; }
+      const translated = dictionary[group.original];
+      const valid = typeof translated === 'string' && !/[<>\x00]/u.test(translated) && window.CPTAIBreaks.valid(group.original,translated);
+      const values = valid ? window.CPTAIBreaks.replacements(group,translated) : new Map();
+      for (const slot of group.slots) for (const token of slot) {
+        // Only automatic calendar translation is allowed as a fallback. Old
+        // fragment translations cannot override a newly grouped sentence.
+        const value = values.has(token.id) ? values.get(token.id) : calendarOnly(token.raw);
+        groupChanges.set(token.id,{original:token.raw,value});
+        if (token.id.nodeValue !== value) token.id.nodeValue = value;
+      }
+    }
+  }
   let timer;
   let sending = false;
   let paused = false;
@@ -34,6 +63,7 @@
     if (url.href !== raw) element.setAttribute('href', url.href);
   }
   function visit(node, attribute) {
+    if (!attribute && groupedNodes.has(node)) return;
     if (attribute === 'value' && !node.matches('input[type="submit"],input[type="button"],input[type="reset"]')) return;
     const owner = attribute ? node : node.parentElement;
     if (!owner || owner.closest(excluded)) return;
@@ -55,9 +85,10 @@
     else node.nodeValue = translated;
   }
   function walk(root) {
-    if (root.nodeType === Node.TEXT_NODE) { visit(root); return; }
+    if (root.nodeType === Node.TEXT_NODE) { const scope = groupRoot(root); prepareGroups(scope); visit(root); return; }
     if (root.nodeType !== Node.ELEMENT_NODE && root.nodeType !== Node.DOCUMENT_NODE) return;
     if (root.nodeType === Node.ELEMENT_NODE && root.closest(excluded)) return;
+    prepareGroups(groupRoot(root));
     const elements = root.nodeType === Node.ELEMENT_NODE ? [root, ...root.querySelectorAll('*')] : [...root.querySelectorAll('*')];
     for (const element of elements) {
       localizeLink(element);
@@ -118,14 +149,16 @@
   }
   // Modern WordPress translates initial HTML without reparsing its structure.
   new MutationObserver(records => {
+    const scopes = new Set();
     for (const record of records) {
-      if (record.type === 'childList') for (const node of record.addedNodes) walk(node);
-      else if (record.type === 'characterData') visit(record.target);
+      if (record.type === 'childList') scopes.add(groupRoot(record.target));
+      else if (record.type === 'characterData') scopes.add(groupRoot(record.target));
       else if (record.type === 'attributes') {
         if (record.attributeName === 'href') localizeLink(record.target);
         else visit(record.target, record.attributeName);
       }
     }
+    for (const root of scopes) if (root?.isConnected) walk(root);
     if (config.scan && pending.size && !sending && !paused) {
       clearTimeout(timer);
       timer = setTimeout(flush, 400);
