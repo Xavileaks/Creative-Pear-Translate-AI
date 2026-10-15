@@ -19,6 +19,7 @@ add_filter( 'pre_http_request', static function ( $pre, $args, $url ) {
 }, 10, 3 );
 try {
     delete_option( CPTAI_Updater::STATE ); delete_option( 'cptai_github_update_lock' );
+    wp_clear_scheduled_hook( CPTAI_Updater::HOOK );
     CPTAI_Updater::boot(); CPTAI_Updater::schedule(); CPTAI_Updater::schedule();
     $events = 0;
     foreach ( _get_cron_array() as $hooks ) { $events += count( $hooks[ CPTAI_Updater::HOOK ] ?? array() ); }
