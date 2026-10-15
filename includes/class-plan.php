@@ -16,6 +16,7 @@ final class CPTAI_Plan {
             }
         } );
         add_action( 'admin_post_cptai_plan_download', array( self::class, 'download' ) );
+        add_action( 'admin_post_cptai_plan_update', array( self::class, 'update_download' ) );
     }
 
     public static function status(): array {
@@ -47,24 +48,26 @@ final class CPTAI_Plan {
         return array( 'version' => 1, 'endpoint' => $endpoint, 'secret' => $secret, 'installation' => $installation, 'site' => home_url( '/' ) );
     }
 
-    public static function download(): void {
+    public static function update_download(): void { self::download( false ); }
+
+    public static function download( bool $link = true ): void {
         if ( ! current_user_can( 'manage_options' ) ) { wp_die( 'No tienes permisos.', '', array( 'response' => 403 ) ); }
-        check_admin_referer( 'cptai_plan_download' );
+        check_admin_referer( $link ? 'cptai_plan_download' : 'cptai_plan_update' );
         if ( ! class_exists( 'ZipArchive' ) ) { wp_die( 'Activa la extensión PHP Zip para descargar el asistente.' ); }
         $path = wp_tempnam( 'cptai-assistant.zip' );
         $zip = new ZipArchive();
         if ( ! $path || true !== $zip->open( $path, ZipArchive::OVERWRITE ) ) { wp_die( 'No se pudo preparar la descarga.' ); }
-        $connection = self::connection();
+        $connection = $link ? self::connection() : null;
         if ( is_wp_error( $connection ) ) { $zip->close(); wp_delete_file( $path ); wp_die( esc_html( $connection->get_error_message() ) ); }
-        $ok = $zip->addFromString( 'cptai-connection.json', wp_json_encode( $connection, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) );
-        foreach ( array( 'cptai-companion.cjs', 'Conectar-ChatGPT.cmd', 'LEEME.txt' ) as $file ) {
+        $ok = ! $link || $zip->addFromString( 'cptai-connection.json', wp_json_encode( $connection, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) );
+        foreach ( array( 'cptai-companion.cjs', 'session-store.cjs', 'runtime.cjs', 'Conectar-ChatGPT.cmd', 'Detener-asistente.cmd', 'Cerrar-sesion-ChatGPT.cmd', 'LEEME.txt' ) as $file ) {
             $ok = $zip->addFile( dirname( CPTAI_FILE ) . '/companion/' . $file, $file ) && $ok;
         }
         $ok = $zip->close() && $ok;
-        if ( ! $ok ) { wp_delete_file( $path ); self::disconnect(); wp_die( 'No se pudo crear el asistente.' ); }
+        if ( ! $ok ) { wp_delete_file( $path ); if ( $link ) { self::disconnect(); } wp_die( 'No se pudo crear el asistente.' ); }
         nocache_headers();
         header( 'Content-Type: application/zip' );
-        header( 'Content-Disposition: attachment; filename="cptai-conectar-chatgpt.zip"' );
+        header( 'Content-Disposition: attachment; filename="' . ( $link ? 'cptai-conectar-chatgpt.zip' : 'cptai-actualizar-asistente.zip' ) . '"' );
         header( 'Content-Length: ' . filesize( $path ) );
         readfile( $path );
         wp_delete_file( $path );

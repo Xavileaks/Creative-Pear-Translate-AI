@@ -3,7 +3,7 @@ Contributors: xavileaks
 Tags: translation, multilingual, openai, claude
 Requires at least: 6.4
 Requires PHP: 8.1
-Stable tag: 1.6.5
+Stable tag: 1.7.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -21,9 +21,9 @@ Diccionario compartido de cadenas con edición desde WordPress, APIs opcionales 
 == External services ==
 Las conexiones de IA son opcionales y se realizan solo al pulsar Consultar modelos, Sugerir con IA, Traducir pendientes con IA o Traducir todo. Se envía la clave API únicamente al proveedor correspondiente; al traducir se envían las cadenas, idiomas y modelo. No se envía el HTML completo, cookies, contraseñas ni información de pedidos. Las visitas normales y la captura no llaman a APIs de IA. Cada proveedor puede aplicar cargos y sus propias condiciones.
 
-ChatGPT - Mi plan (experimental): un asistente local de código abierto completa OAuth en auth.openai.com, valida identidad y permisos, consulta modelos y procesa las traducciones solicitadas desde WordPress. Requiere Node.js 22+ y una cuenta elegible autorizada por OpenAI. Debe permanecer abierto mientras se traduce. Los tokens de OpenAI se mantienen solo en memoria en el ordenador; WordPress recibe únicamente el nombre de cuenta, catálogo de modelos y respuestas de los trabajos solicitados. El plan comparte sus límites y créditos. No cambia automáticamente a una API de pago. Las dos conexiones API se conservan.
+ChatGPT - Mi plan (experimental): un asistente local de código abierto completa OAuth en auth.openai.com, valida identidad y permisos, consulta modelos y procesa las traducciones solicitadas desde WordPress. Requiere Node.js 22+ y una cuenta elegible autorizada por OpenAI. El ordenador y el asistente deben estar activos para traducir. Los tokens se guardan localmente con DPAPI para el usuario de Windows, o en archivos privados 0600 en macOS/Linux; nunca se envían a WordPress. Se recuperan al reabrir y se renuevan de forma serializada. WordPress recibe únicamente el nombre de cuenta, catálogo y respuestas de trabajos. El plan comparte sus límites y créditos. No cambia automáticamente a una API de pago. Las dos conexiones API se conservan.
 
-Descarga el asistente desde CPT AI > Ajustes > ChatGPT - Mi plan, extrae el ZIP y abre Conectar-ChatGPT.cmd (Windows) o ejecuta node cptai-companion.cjs (macOS/Linux). Cada descarga incluye una vinculación privada limitada a los trabajos de esta web y revoca la vinculación anterior. La web debe usar HTTPS salvo en localhost. Ctrl+C intenta revocar la sesión de OpenAI; si cierras la ventana directamente, revócala en ChatGPT. Desvincular en WordPress cancela solo el acceso del asistente a esta web.
+Descarga el asistente desde CPT AI > Ajustes > ChatGPT - Mi plan, extrae el ZIP y abre Conectar-ChatGPT.cmd (Windows) o ejecuta node cptai-companion.cjs --launch (macOS/Linux). Autoriza una vez; el asistente queda en segundo plano y puedes cerrar la ventana o Codex. Tras reiniciar el ordenador, ábrelo para recuperar la sesión, salvo revocación o caducidad definitiva. Detener-asistente.cmd conserva la sesión; Cerrar-sesion-ChatGPT.cmd solicita revocación y elimina las credenciales locales. No se instala un servicio ni inicio automático. Descargar asistente y vincular sustituye la vinculación anterior; Actualizar asistente descarga solo archivos públicos y conserva cptai-connection.json. La web debe usar HTTPS salvo en localhost. Desvincular en WordPress cancela solo el acceso del asistente a esta web.
 
 OpenAI OAuth: https://auth.openai.com
 Documentación: https://developers.openai.com/siwc/token-sharing-open-source
@@ -36,6 +36,12 @@ Condiciones: https://www.anthropic.com/legal/commercial-terms
 Privacidad: https://www.anthropic.com/legal/privacy
 
 == Changelog ==
+
+= 1.7.0 =
+* Sesión de ChatGPT protegida localmente y recuperable tras reiniciar el asistente, sin repetir OAuth por cada actualización.
+* Asistente en segundo plano, independiente de Codex, con control local privado para detenerlo o cerrar sesión.
+* Renovación serializada y persistencia atómica de credenciales; los fallos temporales no revocan la sesión.
+* Actualizar asistente conserva la vinculación; estado más claro cuando el proceso está desconectado.
 
 = 1.6.5 =
 * Normaliza los saltos enviados por formularios para guardar repetidamente una frase sin falsos conflictos de edición.

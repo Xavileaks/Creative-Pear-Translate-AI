@@ -385,7 +385,7 @@
     try {
       const state = await request('plan_status');
       if (revision !== planRevision) return;
-      planState.textContent = state.online ? `Asistente conectado${state.account ? ` · ${state.account}` : ''}` : state.linked ? 'Web vinculada · Abre el asistente' : 'Sin vincular';
+      planState.textContent = state.online ? `Asistente conectado${state.account ? ` · ${state.account}` : ''}` : state.linked ? 'Vinculación guardada · Asistente sin conexión' : 'Sin vincular';
       planState.classList.toggle('is-online', state.online);
       planDisconnect.disabled = !state.linked;
       if (config.provider === 'chatgpt') updateReady(state.ready);

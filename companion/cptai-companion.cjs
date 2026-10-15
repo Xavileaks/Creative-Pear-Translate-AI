@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 'use strict';
-// GPL-2.0-or-later. Uses only Node.js built-ins. OAuth secrets stay in memory.
+// GPL-2.0-or-later. Uses only Node.js built-ins; protected local OAuth storage.
 const crypto = require('node:crypto');
 const http = require('node:http');
 const fs = require('node:fs');
@@ -8,6 +8,8 @@ const path = require('node:path');
 const os = require('node:os');
 const {spawn} = require('node:child_process');
 const readline = require('node:readline/promises');
+const {atomicWrite,sessionStore} = require('./session-store.cjs');
+const {control,acquireRuntime} = require('./runtime.cjs');
 
 const AUTH = 'https://auth.openai.com';
 const API = 'https://api.openai.com/v1';
@@ -41,6 +43,7 @@ function endpointFor(connection, operation) {
 
 function errorCode(status, body) {
   const code = body?.error?.code || body?.response?.error?.code;
+  if (['invalid_grant','invalid_refresh_token','token_expired','refresh_token_expired','refresh_token_invalidated','refresh_token_reused'].includes(code) || body?.error === 'invalid_grant') return 'auth';
   const allowed = ['subscription_sharing_usage_limit_exceeded', 'subscription_sharing_user_not_eligible', 'subscription_sharing_usage_unavailable'];
   if (allowed.includes(code)) return code;
   return status === 401 ? 'auth' : [400, 403, 404].includes(status) ? 'model' : status === 429 ? 'subscription_sharing_usage_limit_exceeded' : 'network';
@@ -53,7 +56,7 @@ async function jsonRequest(url, options = {}, timeout = 20000) {
   let response;
   try { response = await fetch(url, {...options, redirect: 'error', signal: AbortSignal.timeout(timeout)}); }
   catch { throw new SafeError('network', 'No se pudo contactar con el servicio.'); }
-  const failure = (code, message) => Object.assign(new SafeError(code, message), {status:response.status});
+  const failure = (code, message) => Object.assign(new SafeError(code, message), {status:response.status,service:[AUTH,'https://api.openai.com'].includes(endpoint.origin)?'openai':'wordpress'});
   const declared = Number(response.headers.get('content-length') || 0);
   if (declared > limit) throw failure('format', `La respuesta de ${stage} supera el tamaño permitido.`);
   let body;
@@ -175,13 +178,18 @@ async function authorize(profile, hostId, open = openBrowser) {
   } finally { listener.close(); }
 }
 
-async function refresh(session) {
+async function refresh(session, persist = () => {}) {
   if (session.expires > Date.now() + 60000) return;
-  const next = await jsonRequest(AUTH + '/api/accounts/oauth/token', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
-    body:new URLSearchParams({grant_type:'refresh_token', client_id:session.clientId, refresh_token:session.tokens.refresh_token, resource:API})});
-  validateGrant({...session.tokens, ...next});
-  session.tokens = {...session.tokens, ...next};
-  session.expires = Date.now() + next.expires_in * 1000;
+  if (session.refreshing) return session.refreshing;
+  session.refreshing = (async () => {
+    const next = await jsonRequest(AUTH + '/api/accounts/oauth/token', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:new URLSearchParams({grant_type:'refresh_token', client_id:session.clientId, refresh_token:session.tokens.refresh_token, resource:API})});
+    validateGrant({...session.tokens, ...next});
+    session.tokens = {...session.tokens, ...next};
+    session.expires = Date.now() + next.expires_in * 1000;
+    persist(session);
+  })();
+  try { await session.refreshing; } finally { delete session.refreshing; }
 }
 
 function validateJob(job, models) {
@@ -237,7 +245,7 @@ async function parseStream(body) {
 
 async function translate(session, job, models) {
   validateJob(job, models);
-  await refresh(session);
+  await refresh(session, session.persist);
   let response;
   try {
     response = await fetch(API + '/responses', {method:'POST', redirect:'error', signal:AbortSignal.timeout(110000),
@@ -284,16 +292,21 @@ async function resilientSiteRequest(connection, operation, body, {request = site
   throw new SafeError('stopped', 'El asistente se está cerrando.');
 }
 
-async function chooseProfile(connection) {
+function metadataPath(connection) {
   const directory = path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), '.config'), 'CreativePearTranslateAI');
-  fs.mkdirSync(directory, {recursive:true, mode:0o700});
   const name = crypto.createHash('sha256').update(connection.endpoint).digest('hex').slice(0, 32);
-  const file = path.join(directory, name + '.json');
+  return path.join(directory, name + '.json');
+}
+
+async function chooseProfile(connection, background = false) {
+  const file = metadataPath(connection);
   let metadata;
   try { metadata = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { metadata = {hostId:'urn:uuid:' + crypto.randomUUID(), accounts:[]}; }
   if (!/^urn:uuid:[a-f0-9-]{36}$/.test(metadata.hostId) || !Array.isArray(metadata.accounts)) throw new SafeError('profile', 'El registro local no es válido.');
   let profile;
-  if (metadata.accounts.length) {
+  if (background || metadata.accounts.length === 1) {
+    profile = metadata.accounts.find(account=>account.clientId===metadata.activeClientId) || (metadata.accounts.length===1 ? metadata.accounts[0] : undefined);
+  } else if (metadata.accounts.length) {
     console.log('Elige una cuenta para esta web:');
     metadata.accounts.forEach((account, index) => console.log(`${index + 1}. ${String(account.email).replace(/[\r\n\x00-\x1f]/g, '').slice(0,120)}`));
     console.log('0. Conectar otra cuenta');
@@ -302,8 +315,8 @@ async function chooseProfile(connection) {
     if (!/^\d+$/.test(answer) || Number(answer) > metadata.accounts.length) throw new SafeError('profile', 'Selección no válida.');
     profile = Number(answer) ? metadata.accounts[Number(answer) - 1] : undefined;
   }
-  // Only public registration metadata persists; access/refresh/ID tokens never go to disk.
-  fs.writeFileSync(file, JSON.stringify(metadata), {mode:0o600});
+  // Public registration metadata remains separate from protected credentials.
+  atomicWrite(file, JSON.stringify(metadata));
   return {profile, metadata, file};
 }
 
@@ -321,7 +334,8 @@ async function revoke(session) {
 
 async function main() {
   if (Number(process.versions.node.split('.')[0]) < 22) throw new SafeError('runtime', 'Instala Node.js 22 o posterior.');
-  const connectionFile = process.argv[2] || path.join(__dirname, 'cptai-connection.json');
+  const flags = new Set(process.argv.slice(2).filter(arg=>arg.startsWith('--')));
+  const connectionFile = process.argv.slice(2).find(arg=>!arg.startsWith('--')) || path.join(__dirname, 'cptai-connection.json');
   let connection;
   try { connection = validateConnection(JSON.parse(fs.readFileSync(connectionFile, 'utf8'))); }
   catch (error) { throw error instanceof SafeError ? error : new SafeError('connection', 'Extrae el ZIP completo descargado desde CPT AI antes de abrir el asistente.'); }
@@ -329,39 +343,79 @@ async function main() {
   console.log('WordPress: ' + new URL(connection.endpoint).origin);
   console.log('Las traducciones que solicites en esta web utilizarán el uso y créditos disponibles de tu plan.');
   console.log('Tu sesión se mantiene en este ordenador; no se envían claves de OpenAI a WordPress.');
-  const local = await chooseProfile(connection);
-  console.log('Abriendo la página oficial de OpenAI…');
-  console.log('Tienes 15 minutos para completar el inicio de sesión. Mantén el asistente abierto.');
-  const session = await authorize(local.profile, local.metadata.hostId);
-  local.metadata.accounts = local.metadata.accounts.filter(account => account.clientId !== session.clientId);
-  local.metadata.accounts.push({clientId:session.clientId, subject:session.subject, email:session.email});
-  fs.writeFileSync(local.file, JSON.stringify(local.metadata), {mode:0o600});
+  const existing = await control(metadataPath(connection),flags.has('--logout') ? 'logout' : flags.has('--stop') ? 'stop' : 'status');
+  if (existing) { console.log(flags.has('--logout') ? 'Cierre de sesión solicitado al asistente.' : flags.has('--stop') ? 'Asistente detenido; la sesión se conserva para reabrirlo.' : 'El asistente de esta web ya está abierto en segundo plano.'); return; }
+  const local = await chooseProfile(connection,flags.has('--background'));
+  const store = sessionStore(local.file);
+  if (flags.has('--stop')) { console.log('El asistente ya está detenido.'); return; }
+  let session;
+  try { session = local.profile ? store.load(local.profile) : null; }
+  catch { throw new SafeError('storage','No se pudo leer la sesión protegida de este usuario. No se ha borrado; comprueba que usas la misma cuenta del sistema.'); }
+  if (session) validateGrant(session.tokens);
+  if (flags.has('--logout')) {
+    if (session) { const revoked = await revoke(session); store.clear(session); if (!revoked) console.log('No se confirmó la revocación remota. Desconecta la aplicación en los ajustes de ChatGPT.'); }
+    console.log('Sesión local eliminada.'); return;
+  }
   let stopped = false, closing = false;
   let heartbeat;
-  async function close() {
+  const releaseRuntime = await acquireRuntime(local.file, async operation => {
+    if (operation !== 'status') setTimeout(()=>close(operation==='logout').catch(()=>process.exit(1)),25);
+    return {running:!stopped,requested:operation};
+  });
+  async function close(logout = false) {
     if (closing) return; closing = true; stopped = true;
     clearInterval(heartbeat);
-    console.log('Cerrando la sesión…');
-    const revoked = await revoke(session);
-    session.tokens = {};
-    if (!revoked) console.log('No se confirmó la revocación. Puedes desconectar CPT AI en los ajustes de ChatGPT.');
+    // Finish any rotation before stopping, so the replacement is safely stored.
+    if (session?.refreshing) { try { await session.refreshing; } catch {} }
+    if (logout && session) {
+      console.log('Cerrando la sesión…');
+      const revoked = await revoke(session); store.clear(session);
+      if (!revoked) console.log('No se confirmó la revocación. Puedes desconectar CPT AI en los ajustes de ChatGPT.');
+    } else console.log('Asistente detenido. Tu sesión queda protegida para la próxima apertura.');
+    if (session) session.tokens = {};
+    await releaseRuntime();
     process.exit(0);
   }
-  process.once('SIGINT', close); process.once('SIGTERM', close);
+  process.once('SIGINT', ()=>close()); process.once('SIGTERM', ()=>close());
   try {
-    await refresh(session);
-    const catalog = await jsonRequest(API + '/models', {headers:{Authorization:'Bearer ' + session.tokens.access_token}});
+    if (!session) {
+      if (flags.has('--background')) throw new SafeError('auth','Abre Conectar-ChatGPT.cmd para autorizar esta cuenta una vez.');
+      console.log('Abriendo la página oficial de OpenAI…');
+      console.log('Tienes 15 minutos para completar el inicio de sesión.');
+      session = await authorize(local.profile, local.metadata.hostId);
+      store.save(session);
+      local.metadata.accounts = local.metadata.accounts.filter(account => account.clientId !== session.clientId);
+      local.metadata.accounts.push({clientId:session.clientId, subject:session.subject, email:session.email});
+    } else console.log('Sesión recuperada del almacén local protegido.');
+    local.metadata.activeClientId = session.clientId;
+    atomicWrite(local.file, JSON.stringify(local.metadata));
+    session.persist = value=>store.save(value);
+    const renew = () => resilientSessionRequest(()=>refresh(session,session.persist),()=>stopped);
+    await renew();
+    const catalog = await resilientSessionRequest(()=>jsonRequest(API + '/models', {headers:{Authorization:'Bearer ' + session.tokens.access_token}}),()=>stopped);
     const models = parseModels(catalog);
     if (!models.length) throw new SafeError('model', 'OpenAI no devolvió modelos disponibles para esta conexión.');
     console.log('Sesión autorizada. Selecciona ChatGPT · Mi plan en WordPress, consulta los modelos y guarda.');
-    console.log('Mantén esta ventana abierta. Pulsa Ctrl+C para cerrar la sesión.');
+    await resilientSiteRequest(connection,'poll',{account:session.email,models,heartbeat:true},{stopped:()=>stopped});
+    if (flags.has('--launch')) {
+      await releaseRuntime();
+      const log = fs.openSync(local.file.replace(/\.json$/,'.log'),'a',0o600);
+      try {
+        const child=spawn(process.execPath,[__filename,path.resolve(connectionFile),'--background'],{detached:true,stdio:['ignore',log,log],windowsHide:true});
+        child.on('error',()=>console.error('No se pudo iniciar el asistente en segundo plano.')); child.unref();
+      } finally { fs.closeSync(log); }
+      console.log('Asistente iniciado en segundo plano. Puedes cerrar esta ventana.');
+      console.log('Usa Detener-asistente.cmd para pausarlo o Cerrar-sesion-ChatGPT.cmd para revocar la sesión.');
+      return;
+    }
+    console.log('Asistente activo. Ctrl+C lo detiene sin borrar la sesión. --logout cierra la sesión.');
     heartbeat = setInterval(() => {
-      siteRequest(connection, 'poll', {account:session.email, models, heartbeat:true}).catch(() => {});
+      if (session.expires>Date.now()) siteRequest(connection, 'poll', {account:session.email, models, heartbeat:true}).catch(() => {});
     }, 10000);
-    let pendingResult = null;
+    let pendingResult = null, reauthorize = false;
     const requestSite = (operation, body) => resilientSiteRequest(connection, operation, body, {stopped:() => stopped});
     while (!stopped) {
-      await refresh(session);
+      await renew();
       if (pendingResult) {
         // Delivery retries never repeat inference or spend plan usage again.
         try { await requestSite('complete', pendingResult); }
@@ -371,26 +425,49 @@ async function main() {
         }
         pendingResult = null;
       }
+      if (reauthorize) throw new SafeError('auth');
       const result = await requestSite('poll', {account:session.email, models});
       if (result.job) {
         console.log('Procesando un lote de traducción solicitado desde WordPress…');
         try { pendingResult = {id:result.job.id, translations:await translate(session, result.job, models)}; }
         catch (error) {
+          if (error.code==='auth') { store.clear(session); reauthorize=true; }
           pendingResult = {id:result.job.id, error:error instanceof SafeError ? error.code : 'network'};
           console.log(error instanceof SafeError ? 'CPT AI: ' + error.message : 'No se completó el lote. WordPress mostrará el motivo.');
         }
       } else await sleep(2000);
     }
+  } catch(error) {
+    if (error.code==='auth' && error.service!=='wordpress' && session) {
+      store.clear(session);
+      throw new SafeError('auth','La sesión caducó o fue revocada por OpenAI. Abre Conectar-ChatGPT.cmd para autorizar de nuevo la misma cuenta.');
+    }
+    throw error;
   } finally {
     clearInterval(heartbeat);
     if (!closing) {
-      const revoked = await revoke(session); session.tokens = {};
-      if (!revoked) console.log('No se confirmó la revocación. Desconecta la aplicación en los ajustes de ChatGPT si lo necesitas.');
+      // Temporary WordPress/network failures and process restarts never revoke OAuth.
+      if (session) session.tokens = {};
+      await releaseRuntime();
     }
   }
 }
 
-module.exports = {AUTH_WAIT_MS, jsonRequest, parseModels, validateConnection, endpointFor, validateIdentity, validateGrant, validateJob, translationPayload, parseStream, errorCode, callbackListener, authorize, refresh, retryableSiteError, resilientSiteRequest, SafeError};
+async function resilientSessionRequest(request, stopped = () => false, wait = sleep, report = console.log) {
+  let attempts=0;
+  while (!stopped()) {
+    try { return await request(); }
+    catch(error) {
+      if (error.code==='auth') throw error;
+      if (!retryableSiteError(error)) throw error;
+      if (!attempts) report('No se pudo renovar temporalmente la sesión. Se conserva y se reintentará.');
+      await wait(Math.min(30000,2000*2**Math.min(attempts++,4)));
+    }
+  }
+  throw new SafeError('stopped');
+}
+
+module.exports = {AUTH_WAIT_MS, jsonRequest, parseModels, validateConnection, endpointFor, validateIdentity, validateGrant, validateJob, translationPayload, parseStream, errorCode, callbackListener, authorize, refresh, retryableSiteError, resilientSiteRequest, resilientSessionRequest, metadataPath, SafeError};
 if (require.main === module) main().catch(error => {
   const message = error instanceof SafeError ? error.message : 'El asistente no pudo continuar.';
   console.error('CPT AI: ' + message);

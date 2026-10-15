@@ -1,5 +1,8 @@
 .env*
 cptai-connection.json
+*.session
+*.worker
+*.log
 *.zip
 build/
 .idea/

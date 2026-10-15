@@ -147,15 +147,17 @@ $plan_status = CPTAI_Plan::status();
                         <ol class="cptai-plan-steps">
                             <li>Descarga el asistente de esta web y extrae el ZIP.</li>
                             <li>Abre <strong>Conectar-ChatGPT.cmd</strong> en Windows. En macOS/Linux, ejecuta <code>node cptai-companion.cjs</code>. Requiere Node.js 22 o posterior.</li>
-                            <li>Continúa con ChatGPT en la página oficial de OpenAI y autoriza el uso del plan. Mantén el asistente abierto mientras traduces.</li>
+                            <li>Autoriza tu cuenta en OpenAI la primera vez. La sesión se guarda protegida en tu ordenador y se recupera al reabrir. En Windows, el asistente sigue en segundo plano aunque cierres la ventana.</li>
                             <li>Selecciona esta conexión, consulta los modelos y guarda el elegido.</li>
                         </ol>
                         <div class="cptai-plan-actions">
                             <a class="cptai-button" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=cptai_plan_download' ), 'cptai_plan_download' ) ); ?>" id="cptai-plan-download">Descargar asistente y vincular</a>
+                            <a class="cptai-button" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=cptai_plan_update' ), 'cptai_plan_update' ) ); ?>">Actualizar asistente</a>
                             <button type="button" class="cptai-button" id="cptai-plan-disconnect" <?php disabled( ! $plan_status['linked'] ); ?>>Desvincular esta web</button>
                         </div>
                         <p class="cptai-hint">Una nueva descarga sustituye la vinculación anterior. Guarda el ZIP en privado: incluye acceso limitado a los trabajos de traducción de esta web. Tu sesión de OpenAI permanece en tu ordenador.</p>
-                        <p id="cptai-plan-status" class="cptai-plan-state" role="status" aria-live="polite"><?php echo $plan_status['online'] ? 'Asistente conectado' : ( $plan_status['linked'] ? 'Web vinculada · Abre el asistente' : 'Sin vincular' ); ?></p>
+                        <p class="cptai-hint">Para renovar solo los archivos, usa <strong>Actualizar asistente</strong>: conserva la vinculación y no incluye credenciales. Actualizar el plugin tampoco borra tu conexión. El ordenador debe estar encendido y el asistente activo para traducir con el plan.</p>
+                        <p id="cptai-plan-status" class="cptai-plan-state" role="status" aria-live="polite"><?php echo $plan_status['online'] ? 'Asistente conectado' : ( $plan_status['linked'] ? 'Vinculación guardada · Asistente sin conexión' : 'Sin vincular' ); ?></p>
                         <div class="cptai-setting-field">
                             <label for="cptai-chatgpt-model">Modelo del plan de ChatGPT</label>
                             <div class="cptai-model-row"><input type="text" id="cptai-chatgpt-model" name="chatgpt_model" value="<?php echo esc_attr( $settings['chatgpt_model'] ); ?>" list="cptai-chatgpt-models" placeholder="Consulta los modelos con el asistente abierto"><button type="button" class="cptai-button cptai-models" data-provider="chatgpt">Consultar modelos</button></div>

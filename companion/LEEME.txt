@@ -1,45 +1,56 @@
 Creative Pear Translate AI - Plan de ChatGPT (experimental)
 
-1. Extrae todos los archivos del ZIP en una carpeta privada de tu ordenador.
-2. En Windows abre Conectar-ChatGPT.cmd. Requiere Node.js 22 o posterior.
-   En macOS/Linux ejecuta: node cptai-companion.cjs
-3. Inicia sesion exclusivamente en la pagina oficial de OpenAI que se abre.
-   Tienes 15 minutos para completarla. Manten el asistente abierto.
-   Autoriza el uso del plan. La disponibilidad depende de OpenAI y tu cuenta.
-4. Manten esta ventana abierta. En WordPress, elige ChatGPT - Mi plan,
-   consulta los modelos, elige uno y guarda los ajustes.
+1. Extrae los archivos en una carpeta privada de tu ordenador.
+2. Windows: abre Conectar-ChatGPT.cmd (Node.js 22 o posterior).
+   macOS/Linux: node cptai-companion.cjs --launch
+3. La primera vez autoriza tu cuenta en la pagina oficial de OpenAI.
+   Dispones de 15 minutos. No compartas codigos ni contrasenas.
+4. El asistente queda en segundo plano y puedes cerrar la ventana.
+   En WordPress elige ChatGPT - Mi plan, consulta los modelos y guarda.
 
-Desde 1.5.1 el asistente mantiene la sesion en memoria y reintenta automaticamente
-si WordPress esta actualizandose o hay un corte temporal de conexion. Una entrega
-se reintenta con la misma respuesta, sin volver a traducir. Si el trabajo caduca,
-WordPress permite solicitarlo de nuevo. No se reintentan credenciales revocadas.
-Reemplazar el script no cambia un asistente ya abierto: la nueva version se carga
-al reiniciarlo. Mantenerlo abierto evita iniciar sesion por cada actualizacion.
-5. Usa Sugerir con IA o Traducir pendientes con IA.
-6. Pulsa Ctrl+C para revocar la sesion y cerrar el asistente.
+SESION PROTEGIDA (desde 1.7.0)
+La sesion se guarda localmente y se recupera al reabrir el asistente.
+En Windows se cifra con DPAPI para tu usuario del sistema. En macOS/Linux
+se usan archivos privados con permisos 0600 y directorio 0700.
+Los archivos se escriben de forma atomica. Las renovaciones se serializan
+y guardan juntas las credenciales nuevas. Nunca se envian a WordPress,
+al navegador, al repositorio ni a los registros.
 
-Las conexiones API de OpenAI y Claude se conservan. Nunca se cambia a una
-API de pago automaticamente. Usar el plan comparte sus limites y creditos.
+Cerrar esta ventana, cerrar Codex o actualizar el plugin no cierra la
+sesion del asistente en segundo plano. Si reinicias el ordenador, vuelve
+a abrir Conectar-ChatGPT.cmd: recuperara la sesion sin autorizar de nuevo,
+salvo que OpenAI la haya revocado o haya caducado definitivamente.
+El ordenador debe estar encendido y el asistente activo para traducir.
+No se instala un servicio ni se modifica el inicio automatico del equipo.
 
-Cada web descarga su propia vinculacion. No compartas cptai-connection.json:
-permite recoger y responder solo a trabajos de traduccion de esa web.
-Una nueva descarga desde WordPress invalida la vinculacion anterior.
-Desvincular en WordPress no revoca la autorizacion de OpenAI: para eso,
-usa Ctrl+C en el asistente o los ajustes de ChatGPT.
+DETENER O CERRAR SESION
+Detener-asistente.cmd pausa esta web y conserva su sesion protegida.
+Cerrar-sesion-ChatGPT.cmd solicita la revocacion y elimina la sesion local.
+En macOS/Linux: node cptai-companion.cjs --stop o --logout.
+Sin --launch, Ctrl+C detiene el proceso conservando la sesion.
+Si la revocacion remota no se confirma, desconecta la aplicacion en los
+ajustes de ChatGPT. Cada web mantiene su propia vinculacion.
 
-Los tokens de OpenAI permanecen en memoria en tu ordenador. Solo se guarda
-el identificador de registro, el identificador del ordenador y el nombre
-de la cuenta en CreativePearTranslateAI dentro de la carpeta de datos
-locales del usuario. Nunca se leen sesiones existentes de Codex/ChatGPT.
+ACTUALIZACIONES
+Actualizar el plugin conserva la vinculacion y el modelo elegidos.
+Los cortes de red y el mantenimiento de WordPress se reintentan sin
+revocar la sesion. Una respuesta ya generada no se vuelve a traducir.
+Para cambiar solo los archivos del asistente usa "Actualizar asistente"
+en WordPress. Deten el asistente, reemplaza los archivos y vuelve a abrirlo.
+Conserva cptai-connection.json: el ZIP de actualizacion no lo incluye.
+"Descargar asistente y vincular" crea una vinculacion nueva y sustituye
+la anterior. No lo uses para una actualizacion rutinaria.
 
-Si cierras la ventana abruptamente, no se puede confirmar la revocacion.
-Puedes desconectar la aplicacion en ChatGPT > Ajustes > Uso.
+No compartas cptai-connection.json: permite recoger y responder a los
+trabajos de traduccion de esa web. Guarda el ZIP de vinculacion en privado.
+Desvincular en WordPress cancela el acceso a esa web; no revoca por si
+solo la autorizacion de OpenAI. Usa Cerrar-sesion-ChatGPT.cmd para eso.
 
-El asistente no publica un servidor en internet. La recepcion de la
-autorizacion escucha un puerto temporal exclusivamente en 127.0.0.1.
-La web se consulta mediante HTTPS (HTTP solo en instalaciones locales).
+Las APIs opcionales de OpenAI y Claude se conservan. Nunca se cambia
+automaticamente a una API de pago. El plan comparte sus limites y creditos.
+No se leen sesiones de Codex ni de otras aplicaciones.
 
-Codigo y licencia GPL-2.0-or-later:
+Codigo GPL-2.0-or-later:
 https://github.com/Xavileaks/Creative-Pear-Translate-AI
 Documentacion oficial:
-https://developers.openai.com/siwc/token-sharing-open-source
+https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions

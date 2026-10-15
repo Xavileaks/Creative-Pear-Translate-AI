@@ -50,6 +50,12 @@ try {
     assert_plan( 200 === $polled->get_status() && null === $polled->get_data()['job'], 'authenticated worker can poll' );
     assert_plan( 'no-store, private' === $polled->get_headers()['Cache-Control'], 'bridge responses never cached' );
     assert_plan( CPTAI_Settings::ready(), 'online worker and selected model ready' );
+    $linked_before_update = get_option( 'cptai_plan_link' );
+    CPTAI_Store::install();
+    CPTAI_Settings::save( $settings_input );
+    assert_plan( $linked_before_update === get_option( 'cptai_plan_link' ), 'schema update and settings save preserve existing worker binding' );
+    assert_plan( 'fake-text-model' === CPTAI_Settings::get()['chatgpt_model'] && CPTAI_Settings::ready(), 'schema update preserves selected plan model and online state' );
+    assert_plan( $keys === array( CPTAI_Settings::key( 'openai' ), CPTAI_Settings::key( 'claude' ) ), 'schema update preserves both optional API credentials' );
     assert_plan( array( 'fake-text-model' ) === CPTAI_Provider::models( 'chatgpt' ), 'models use local companion catalog' );
     $status = ajax_plan( 'plan_status' );
     assert_plan( $status['success'] && $status['data']['online'], 'status available to administrator' );

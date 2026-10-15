@@ -23,8 +23,12 @@ jobs:
           php tests/calendar.php
           node tests/calendar.cjs
           node tests/companion.cjs
+          node tests/session-store.cjs
+          node tests/worker-lifecycle.cjs
           node tests/breaks.cjs
           node --check companion/cptai-companion.cjs
+          node --check companion/session-store.cjs
+          node --check companion/runtime.cjs
           node --check assets/calendar.js
           node --check assets/admin.js
           node --check assets/frontend.js
